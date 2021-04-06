@@ -10,6 +10,9 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+        <github.global.server>github</github.global.server>
+
         <java.version>1.8</java.version>
         <kafkaconnect.version>2.7.0</kafkaconnect.version>
         <confluent.version>5.1.1</confluent.version>
@@ -77,6 +80,15 @@
             </plugin>
         </plugins>
     </build>
+
+    <distributionManagement>
+        <repository>
+            <id>github</id>
+            <name>GitHub Birdie Apache Maven Packages</name>
+            <url>https://maven.pkg.github.com/birdiecare/connect-smts</url>
+        </repository>
+    </distributionManagement>
+
     <repositories>
         <repository>
             <id>confluent</id>

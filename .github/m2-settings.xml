@@ -13,7 +13,7 @@
                 <repository>
                     <id>github</id>
                     <name>GitHub Birdie Care Apache Maven Packages</name>
-                    <url>https://maven.pkg.github.com/birdiecare</url>
+                    <url>https://maven.pkg.github.com/birdiecare/connect-smts</url>
                 </repository>
             </repositories>
         </profile>

@@ -86,9 +86,13 @@ public class SchemaTransformer {
             );
         }
 
-        // FIXME: optionalStructFields make it false.
+        SchemaBuilder schemaBuilder = new SchemaBuilder(Values.inferSchema(obj).type());
 
-        return new SchemaAndValue(Values.inferSchema(obj), obj);
+        if (optionalStructFields) {
+            schemaBuilder.optional();
+        }
+
+        return new SchemaAndValue(schemaBuilder.build(), obj);
     }
 
     Schema unionStruct(Schema left, Schema right) {
@@ -114,8 +118,9 @@ public class SchemaTransformer {
             Schema firstSchema = entry.getValue().get(0).schema();
             SchemaBuilder unionedSchema = new SchemaBuilder(firstSchema.type());
 
-            // We don't have this field everywhere, we need it to be optinal.
-            if (entry.getValue().size() != streams.length) {
+            // We don't have this field everywhere, we need it to be optional.
+            // Field will also be optional if optional-struct-fields is true.
+            if (entry.getValue().size() != streams.length | optionalStructFields) {
                 unionedSchema.optional();
             }
 

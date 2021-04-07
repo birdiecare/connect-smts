@@ -19,15 +19,19 @@ public class JsonSchemaTest {
         .field("json", SchemaBuilder.string().name("io.debezium.data.Json").optional().build())
         .build();
 
-    private SourceRecord doTransform(Struct value) {
+    private SourceRecord doTransform(Struct value, Map<String, ?> props) {
         final SourceRecord record = new SourceRecord(
                 null, null, "test", 0,
                 SchemaBuilder.bytes().optional().build(), "key".getBytes(), simpleSchema, value);
 
         JsonSchema transformer = new JsonSchema();
-        transformer.configure(new HashMap<>());
+        transformer.configure(props);
 
         return transformer.apply(record);
+    }
+
+    private SourceRecord doTransform(Struct value) {
+        return doTransform(value, new HashMap<>());
     }
 
     @Test
@@ -84,7 +88,7 @@ public class JsonSchemaTest {
     }
 
     @Test
-    public void transformsAnArrayOfDifferentStructs() {
+    public void transformsAnArrayOfDifferentStructsWithRequiredCommonFields() {
         Struct value = new Struct(simpleSchema);
         value.put("id", "1234-5678");
         value.put("json", "[\n" +
@@ -117,6 +121,28 @@ public class JsonSchemaTest {
         assertNotNull(jsonSchema.valueSchema().field("execution_offset"));
         assertTrue(jsonSchema.valueSchema().field("execution_offset").schema().isOptional());
         assertEquals(Schema.Type.INT64, jsonSchema.valueSchema().field("execution_offset").schema().type());
+    }
+
+    @Test
+    public void transformsAnArrayOfDifferentStructsWithOptionalFields() {
+        Struct value = new Struct(simpleSchema);
+        value.put("id", "1234-5678");
+        value.put("json", "[\n" +
+                "  {\"type\": \"care_task\", \"id\": \"48385242-96d5-11eb-b8f1-4fc97a48a234\", \"note\": \"My note\", \"task_definition_id\": \"1234\"},\n" +
+                "  {\"type\": \"regular_task\", \"id\": \"502951c2-96d5-11eb-8776-33a3a6b06ce7\", \"external_schedule_id\": \"123\", \"time_of_day\": \"MORNING\", \"execution_offset\": 3600}\n" +
+                "]");
+
+        final SourceRecord transformedRecord = doTransform(value, new HashMap<>() {{
+           put("optional-struct-fields", "true");
+        }});
+
+        Schema transformedValueSchema = transformedRecord.valueSchema();
+
+        Schema jsonSchema = transformedValueSchema.field("json").schema();
+        assertTrue(jsonSchema.valueSchema().field("type").schema().isOptional());
+        assertTrue(jsonSchema.valueSchema().field("id").schema().isOptional());
+        assertTrue(jsonSchema.valueSchema().field("note").schema().isOptional());
+        assertTrue(jsonSchema.valueSchema().field("execution_offset").schema().isOptional());
     }
 
     @Test

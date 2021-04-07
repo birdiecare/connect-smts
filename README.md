@@ -35,11 +35,15 @@ trade-offs that needs to be made if the structure changes too often over time.
 ```
 transforms=json
 transforms.json.type=com.birdie.kafka.connect.smt.JsonSchema
+transforms.json.optional-struct-fields=true
 ```
 
 ## Properties
 
-None.
+|Name|Description|Type|Default|
+|---|---|---|---|---|
+|`optional-struct-fields`| When `true`, all fields in structs are optional. This enables you to have slightly different types within each array item for example, so long that every field with the same name as the same type. | Boolean | `false` |
+
 
 # Development
 

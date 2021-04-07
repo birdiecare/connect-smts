@@ -12,7 +12,13 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class SchemaTransformer {
-    public SchemaAndValue transform(Field field, String jsonValue) throws URISyntaxException, ParseException {
+    private boolean optionalStructFields;
+
+    public SchemaTransformer(boolean optionalStructFields) {
+        this.optionalStructFields = optionalStructFields;
+    }
+
+    public SchemaAndValue transform(Field field, String jsonValue) throws ParseException {
         return transformJsonValue(
                 new JSONParser().parse(jsonValue),
                 field.name()
@@ -79,6 +85,8 @@ public class SchemaTransformer {
                 transformedChildren
             );
         }
+
+        // FIXME: optionalStructFields make it false.
 
         return new SchemaAndValue(Values.inferSchema(obj), obj);
     }

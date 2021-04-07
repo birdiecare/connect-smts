@@ -10,25 +10,19 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.net.URISyntaxException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 public class JsonSchema implements Transformation<SourceRecord> {
     private static final Logger LOGGER = LoggerFactory.getLogger(JsonSchema.class);
 
     private interface ConfigName {
-//        String NO_SCHEMA_BEHAVIOUR = "no-schema-behaviour";
+        String OPTIONAL_STRUCT_FIELDS = "optional-struct-fields";
     }
 
-    public static final ConfigDef CONFIG_DEF = new ConfigDef();
-//            .define(JsonSchema.ConfigName.NO_SCHEMA_BEHAVIOUR, ConfigDef.Type.STRING, "pass", ConfigDef.Importance.MEDIUM,
-//                    "What to do if missing schema? Can be either \"pass\" or \"fail\".");
+    public static final ConfigDef CONFIG_DEF = new ConfigDef()
+            .define(ConfigName.OPTIONAL_STRUCT_FIELDS, ConfigDef.Type.BOOLEAN, false, ConfigDef.Importance.MEDIUM, "When true, all struct fields are optional.");
 
-    private SchemaTransformer schemaTransformer = new SchemaTransformer();
-    private Map<String, SimpleConfig> configPerColumn;
-
+    private SchemaTransformer schemaTransformer;
 
     @Override
     public SourceRecord apply(SourceRecord record) {
@@ -60,7 +54,7 @@ public class JsonSchema implements Transformation<SourceRecord> {
 
                     try {
                         return schemaTransformer.transform(field, jsonString);
-                    } catch (URISyntaxException | ParseException e) {
+                    } catch (ParseException e) {
                         throw new IllegalArgumentException("Cannot transform schema for type "+field.name()+". ("+LoggingContext.createContext(record)+")", e);
                     }
                 }
@@ -91,24 +85,8 @@ public class JsonSchema implements Transformation<SourceRecord> {
     public void configure(Map<String, ?> props) {
         final SimpleConfig config = new SimpleConfig(CONFIG_DEF, props);
 
-        HashMap<String, Map<String, String>> configPropsPerColumn = new HashMap<>();
-        for (String key : props.keySet()) {
-            if (key.startsWith("columns.")) {
-                int indexOfDot = key.lastIndexOf(".");
-                String columnName = key.substring("columns.".length(), indexOfDot);
-                String configName = key.substring(indexOfDot + 1);
-
-                if (!configPropsPerColumn.containsKey(columnName)) {
-                    configPropsPerColumn.put(columnName, new HashMap<>());
-                }
-
-                configPropsPerColumn.get(columnName).put(configName, (String) props.get(key));
-            }
-        }
-
-        this.configPerColumn = new HashMap<>();
-        for (String columnName : configPropsPerColumn.keySet()) {
-            this.configPerColumn.put(columnName, new SimpleConfig(ColumnConfiguration.DEFINITION, configPropsPerColumn.get(columnName)));
-        }
+        schemaTransformer = new SchemaTransformer(
+                config.getBoolean(ConfigName.OPTIONAL_STRUCT_FIELDS)
+        );
     }
 }

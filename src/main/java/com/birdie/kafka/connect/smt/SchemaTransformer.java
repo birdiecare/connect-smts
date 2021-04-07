@@ -120,7 +120,7 @@ public class SchemaTransformer {
 
             // We don't have this field everywhere, we need it to be optional.
             // Field will also be optional if optional-struct-fields is true.
-            if (entry.getValue().size() != streams.length | optionalStructFields) {
+            if (entry.getValue().size() != streams.length || optionalStructFields) {
                 unionedSchema.optional();
             }
 

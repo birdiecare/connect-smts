@@ -16,6 +16,7 @@
 
 package com.birdie.kafka.connect.smt;
 
+import com.birdie.kafka.connect.utils.LoggingContext;
 import com.fasterxml.jackson.core.JacksonException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.common.config.ConfigDef;
@@ -23,7 +24,6 @@ import org.apache.kafka.connect.connector.ConnectRecord;
 import org.apache.kafka.connect.data.Schema;
 
 import org.apache.kafka.connect.errors.DataException;
-import org.apache.kafka.connect.source.SourceRecord;
 import org.apache.kafka.connect.transforms.Transformation;
 import org.apache.kafka.connect.transforms.util.SimpleConfig;
 import org.jose4j.jwa.AlgorithmConstraints;
@@ -134,7 +134,7 @@ public abstract class Jose<R extends ConnectRecord<R>> implements Transformation
           break;
         }
 
-        throw new IllegalArgumentException("Flattened JWE could not be decoded ("+LoggingContext.createContext(record)+").", e);
+        throw new IllegalArgumentException("Flattened JWE could not be decoded ("+ LoggingContext.createContext(record)+").", e);
       } catch (JoseException e) {
         throw new IllegalArgumentException("Could not create compacted JWE ("+LoggingContext.createContext(record)+")", e);
       }

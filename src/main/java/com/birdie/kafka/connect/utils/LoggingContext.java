@@ -1,4 +1,4 @@
-package com.birdie.kafka.connect.smt;
+package com.birdie.kafka.connect.utils;
 
 import org.apache.kafka.connect.connector.ConnectRecord;
 import org.apache.kafka.connect.source.SourceRecord;
@@ -6,7 +6,7 @@ import org.apache.kafka.connect.source.SourceRecord;
 import java.util.Map;
 
 public class LoggingContext {
-    static String createContext(ConnectRecord record) {
+    public static String createContext(ConnectRecord record) {
         String readableKey = record.key().toString();
         if (record.key() instanceof byte[]) {
             readableKey = new String((byte[]) record.key());

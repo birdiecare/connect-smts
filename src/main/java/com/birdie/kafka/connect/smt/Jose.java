@@ -23,7 +23,6 @@ import org.apache.kafka.connect.connector.ConnectRecord;
 import org.apache.kafka.connect.data.Schema;
 
 import org.apache.kafka.connect.errors.DataException;
-import org.apache.kafka.connect.source.SourceRecord;
 import org.apache.kafka.connect.transforms.Transformation;
 import org.apache.kafka.connect.transforms.util.SimpleConfig;
 import org.jose4j.jwa.AlgorithmConstraints;

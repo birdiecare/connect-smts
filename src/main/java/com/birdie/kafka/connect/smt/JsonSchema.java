@@ -5,6 +5,7 @@ import org.apache.kafka.connect.data.*;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.apache.kafka.connect.transforms.Transformation;
 import org.apache.kafka.connect.transforms.util.SimpleConfig;
+import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -18,19 +19,14 @@ public class JsonSchema implements Transformation<SourceRecord> {
     private static final Logger LOGGER = LoggerFactory.getLogger(JsonSchema.class);
 
     private interface ConfigName {
-        String NO_SCHEMA_BEHAVIOUR = "no-schema-behaviour";
+//        String NO_SCHEMA_BEHAVIOUR = "no-schema-behaviour";
     }
 
-    public static final ConfigDef CONFIG_DEF = new ConfigDef()
-            .define(JsonSchema.ConfigName.NO_SCHEMA_BEHAVIOUR, ConfigDef.Type.STRING, ConfigDef.Importance.HIGH,
-                    "What to do if missing schema? Can be either \"pass\" or \"fail\".");
-
-    public static final ConfigDef COLUMN_CONFIG_DEF = new ConfigDef()
-            .define("schema", ConfigDef.Type.STRING, ConfigDef.Importance.HIGH,
-                    "Where is the schema.");
+    public static final ConfigDef CONFIG_DEF = new ConfigDef();
+//            .define(JsonSchema.ConfigName.NO_SCHEMA_BEHAVIOUR, ConfigDef.Type.STRING, "pass", ConfigDef.Importance.MEDIUM,
+//                    "What to do if missing schema? Can be either \"pass\" or \"fail\".");
 
     private SchemaTransformer schemaTransformer = new SchemaTransformer();
-    private boolean failOnMissingSchema;
     private Map<String, SimpleConfig> configPerColumn;
 
 
@@ -45,62 +41,38 @@ public class JsonSchema implements Transformation<SourceRecord> {
             throw new IllegalArgumentException("Only applies on messages with a struct schema, got "+schema.type()+" ("+LoggingContext.createContext(record)+")");
         }
 
-        SchemaBuilder builder = new SchemaBuilder(schema.type());
         Struct value = (Struct) record.value();
 
-        HashMap<String, Object> newValues = new HashMap<>();
-
-        System.out.println("record:        schema.name() = "+schema.name());
-
-        for (Field field : schema.fields()) {
-            if (field.schema().type() == Schema.Type.STRING) {
-                System.out.println("yay, found a string field: "+field.name()+"; doc="+field.schema().doc()+"; name="+field.schema().name());
-
-                if ("io.debezium.data.Json".equals(field.schema().name())) {
-                    System.out.println("yay, marked as JSON by debezium!");
+        SchemaAndValue transformed = StructWalker.walk(
+                schema.name(),
+                schema.fields(),
+                field -> field.name(),
+                field -> {
+                    if (field.schema().type() != Schema.Type.STRING
+                            || !"io.debezium.data.Json".equals(field.schema().name())) {
+                        return new SchemaAndValue(field.schema(), value.get(field.name()));
+                    }
 
                     String jsonString = (String) value.get(field.name());
-
-                    if (!configPerColumn.containsKey(field.name())) {
-                        if (failOnMissingSchema) {
-                            throw new IllegalArgumentException("Could not find schema for field "+field.name()+". ("+LoggingContext.createContext(record)+")");
-                        } else {
-                            LOGGER.error("Could not find schema for field "+field.name()+", skipping as per configuration. ("+LoggingContext.createContext(record)+")");
-                            continue;
-                        }
+                    if (jsonString == null) {
+                        return null;
                     }
 
-                    String schemaUrl = configPerColumn.get(field.name()).getString("schema");
                     try {
-                        SchemaAndValue transformed = schemaTransformer.transform(schemaUrl, jsonString);
-
-                        builder.field(field.name(), transformed.schema());
-                        newValues.put(field.name(), transformed.value());
-                    } catch (URISyntaxException e) {
+                        return schemaTransformer.transform(field, jsonString);
+                    } catch (URISyntaxException | ParseException e) {
                         throw new IllegalArgumentException("Cannot transform schema for type "+field.name()+". ("+LoggingContext.createContext(record)+")", e);
                     }
-
-                    continue;
                 }
-            }
-
-            builder.field(field.name(), field.schema());
-            newValues.put(field.name(), value.get(field.name()));
-        }
-
-        Schema newSchema = builder.build();
-        Struct newStruct = new Struct(newSchema);
-        for (String key : newValues.keySet()) {
-            newStruct.put(key, newValues.get(key));
-        }
-
+        );
 
         return record.newRecord(
                 record.topic(),
                 record.kafkaPartition(),
                 record.keySchema(),
                 record.key(),
-                newSchema, newStruct,
+                transformed.schema(),
+                transformed.value(),
                 record.timestamp()
         );
     }
@@ -136,9 +108,7 @@ public class JsonSchema implements Transformation<SourceRecord> {
 
         this.configPerColumn = new HashMap<>();
         for (String columnName : configPropsPerColumn.keySet()) {
-            this.configPerColumn.put(columnName, new SimpleConfig(COLUMN_CONFIG_DEF, configPropsPerColumn.get(columnName)));
+            this.configPerColumn.put(columnName, new SimpleConfig(ColumnConfiguration.DEFINITION, configPropsPerColumn.get(columnName)));
         }
-
-        failOnMissingSchema = config.getString(ConfigName.NO_SCHEMA_BEHAVIOUR).equals("fail");
     }
 }

@@ -35,8 +35,6 @@ trade-offs that needs to be made if the structure changes too often over time.
 ```
 transforms=json
 transforms.json.type=com.birdie.kafka.connect.smt.JsonSchema
-transforms.json.no-schema-behaviour=fail
-transforms.json.columns.tasks.schema=https://visit-planning.production.birdie.care/docs.json#VisitInstance.tasks
 ```
 
 ## Properties

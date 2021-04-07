@@ -1,5 +1,7 @@
-package com.birdie.kafka.connect.smt;
+package com.birdie.kafka.connect.utils;
 
+import com.birdie.kafka.connect.utils.LoggingContext;
+import com.birdie.kafka.connect.utils.MirrorUtils;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.source.SourceRecord;

@@ -1,4 +1,4 @@
-package com.birdie.kafka.connect.smt;
+package com.birdie.kafka.connect.utils;
 
 import org.apache.kafka.common.TopicPartition;
 
@@ -8,7 +8,7 @@ import java.util.Map;
 
 // Copied from private class `MirrorUtils`
 // @see https://github.com/apache/kafka/blob/2.7/connect/mirror/src/main/java/org/apache/kafka/connect/mirror/MirrorUtils.java#L52-L62
-final class MirrorUtils {
+public final class MirrorUtils {
     static Map<String, Object> wrapPartition(TopicPartition topicPartition, String sourceClusterAlias) {
         Map<String, Object> wrapped = new HashMap();
         wrapped.put("topic", topicPartition.topic());

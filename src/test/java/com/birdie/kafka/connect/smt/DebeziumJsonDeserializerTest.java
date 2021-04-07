@@ -4,7 +4,6 @@ import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.source.SourceRecord;
-import org.junit.After;
 import org.junit.Test;
 
 import java.util.HashMap;
@@ -12,7 +11,7 @@ import java.util.Map;
 
 import static org.junit.Assert.*;
 
-public class JsonSchemaTest {
+public class DebeziumJsonDeserializerTest {
     private static final Schema simpleSchema = SchemaBuilder.struct()
         .name("Value")
         .field("id", SchemaBuilder.STRING_SCHEMA)
@@ -24,7 +23,7 @@ public class JsonSchemaTest {
                 null, null, "test", 0,
                 SchemaBuilder.bytes().optional().build(), "key".getBytes(), simpleSchema, value);
 
-        JsonSchema transformer = new JsonSchema();
+        DebeziumJsonDeserializer transformer = new DebeziumJsonDeserializer();
         transformer.configure(props);
 
         return transformer.apply(record);

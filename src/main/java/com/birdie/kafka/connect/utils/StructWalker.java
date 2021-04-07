@@ -1,4 +1,4 @@
-package com.birdie.kafka.connect.smt;
+package com.birdie.kafka.connect.utils;
 
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaAndValue;

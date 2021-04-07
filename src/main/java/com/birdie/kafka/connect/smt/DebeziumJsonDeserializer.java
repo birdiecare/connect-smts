@@ -1,20 +1,18 @@
 package com.birdie.kafka.connect.smt;
 
+import com.birdie.kafka.connect.json.SchemaTransformer;
+import com.birdie.kafka.connect.utils.LoggingContext;
+import com.birdie.kafka.connect.utils.StructWalker;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.connect.data.*;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.apache.kafka.connect.transforms.Transformation;
 import org.apache.kafka.connect.transforms.util.SimpleConfig;
 import org.json.simple.parser.ParseException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-import java.net.URISyntaxException;
 import java.util.Map;
 
-public class JsonSchema implements Transformation<SourceRecord> {
-    private static final Logger LOGGER = LoggerFactory.getLogger(JsonSchema.class);
-
+public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
     private interface ConfigName {
         String OPTIONAL_STRUCT_FIELDS = "optional-struct-fields";
     }
@@ -27,7 +25,7 @@ public class JsonSchema implements Transformation<SourceRecord> {
     @Override
     public SourceRecord apply(SourceRecord record) {
         if (record.valueSchema() == null) {
-            throw new IllegalArgumentException("Only applies on messages with schema ("+LoggingContext.createContext(record)+")");
+            throw new IllegalArgumentException("Only applies on messages with schema ("+ LoggingContext.createContext(record)+")");
         }
 
         Schema schema = record.valueSchema();

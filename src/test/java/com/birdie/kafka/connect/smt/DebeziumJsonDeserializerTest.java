@@ -65,6 +65,26 @@ public class DebeziumJsonDeserializerTest {
     }
 
     @Test
+    public void ignoresANullValueWithinProperty() {
+        Struct value = new Struct(simpleSchema);
+        value.put("id", "1234-5678");
+        value.put("json", "{\"foo\": \"bar\", \"baz\": null}");
+
+        final SourceRecord transformedRecord = doTransform(value);
+
+        Schema transformedValueSchema = transformedRecord.valueSchema();
+
+        assertNotNull(transformedValueSchema);
+        assertNotNull(transformedValueSchema.field("id"));
+        assertNotNull(transformedValueSchema.field("json"));
+
+        Schema jsonSchema = transformedValueSchema.field("json").schema();
+        assertEquals(Schema.Type.STRUCT, jsonSchema.type());
+        assertNotNull(jsonSchema.field("foo"));
+        assertNull(jsonSchema.field("baz"));
+    }
+
+    @Test
     public void transformsAStruct() {
         Struct value = new Struct(simpleSchema);
         value.put("id", "1234-5678");

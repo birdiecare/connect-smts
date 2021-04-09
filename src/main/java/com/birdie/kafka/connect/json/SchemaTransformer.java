@@ -33,7 +33,8 @@ public class SchemaTransformer {
                     key,
                     (Set<Map.Entry<String, Object>>) object.entrySet(),
                     entry -> entry.getKey(),
-                    entry -> transformJsonValue(entry.getValue(), key+"_"+entry.getKey())
+                    entry -> transformJsonValue(entry.getValue(), key+"_"+entry.getKey()),
+                    optionalStructFields
             );
         } else if (obj instanceof JSONArray) {
             Schema childSchema = null;
@@ -77,13 +78,23 @@ public class SchemaTransformer {
 
             // By default, if array is empty, it's an empty struct
             if (childSchema == null) {
-                childSchema = SchemaBuilder.struct().name(key+"_array_item").build();
+                SchemaBuilder schemaBuilder = SchemaBuilder.struct();
+                if (optionalStructFields) {
+                    schemaBuilder.optional();
+                }
+                childSchema = schemaBuilder.name(key+"_array_item").build();
+            }
+
+            SchemaBuilder schemaBuilder = SchemaBuilder.array(childSchema);
+            if (optionalStructFields) {
+                schemaBuilder.optional();
             }
 
             return new SchemaAndValue(
-                SchemaBuilder.array(childSchema).name(key+"_array").build(),
+                schemaBuilder.name(key+"_array").build(),
                 transformedChildren
             );
+
         } else if (obj == null) {
             return null;
         }

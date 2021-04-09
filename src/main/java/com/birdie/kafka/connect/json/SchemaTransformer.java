@@ -84,6 +84,8 @@ public class SchemaTransformer {
                 SchemaBuilder.array(childSchema).name(key+"_array").build(),
                 transformedChildren
             );
+        } else if (obj == null) {
+            return null;
         }
 
         SchemaBuilder schemaBuilder = new SchemaBuilder(Values.inferSchema(obj).type());

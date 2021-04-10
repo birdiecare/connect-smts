@@ -16,6 +16,16 @@ public class StructWalker {
             Function<T, String> identifierFn,
             Function<T, SchemaAndValue> transformerFn
     ) {
+        return walk(name, items, identifierFn, transformerFn, false);
+    }
+
+    public static <T> SchemaAndValue walk(
+            String name,
+            Collection<T> items,
+            Function<T, String> identifierFn,
+            Function<T, SchemaAndValue> transformerFn,
+            Boolean optionalStructFields
+    ) {
         SchemaBuilder builder = SchemaBuilder.struct().name(name);
         HashMap<String, Object> valuesPerField = new HashMap<>();
 
@@ -27,6 +37,10 @@ public class StructWalker {
                 builder.field(identifier, field.schema());
                 valuesPerField.put(identifier, field.value());
             }
+        }
+
+        if (optionalStructFields) {
+            builder.optional();
         }
 
         Schema newSchema = builder.build();

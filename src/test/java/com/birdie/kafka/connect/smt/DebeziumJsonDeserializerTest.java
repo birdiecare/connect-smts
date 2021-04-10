@@ -165,6 +165,27 @@ public class DebeziumJsonDeserializerTest {
     }
 
     @Test
+    public void transformsAnJsonOfDifferentStructsWithOptionalFields() {
+        Struct value = new Struct(simpleSchema);
+        value.put("id", "1234-5678");
+        value.put("json", "{\n" +
+                "  \"field1\": {\"type\": \"care_task\", \"id\": \"48385242-96d5-11eb-b8f1-4fc97a48a234\", \"note\": \"My note\", \"task_definition_id\": \"1234\"},\n" +
+                "  \"field2\": 100\n" +
+                "}");
+
+        final SourceRecord transformedRecord = doTransform(value, new HashMap<>() {{
+           put("optional-struct-fields", "true");
+        }});
+
+        Schema transformedValueSchema = transformedRecord.valueSchema();
+
+        Schema jsonSchema = transformedValueSchema.field("json").schema();
+        assertTrue(jsonSchema.field("field1").schema().isOptional());
+        assertTrue(jsonSchema.field("field2").schema().isOptional());
+        assertTrue(jsonSchema.field("field1").schema().field("type").schema().isOptional());
+    }
+
+    @Test
     public void transformsEmptyArray() {
         Struct value = new Struct(simpleSchema);
         value.put("id", "1234-5678");

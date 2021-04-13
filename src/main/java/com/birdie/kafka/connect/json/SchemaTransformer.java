@@ -137,7 +137,7 @@ public class SchemaTransformer {
                 unionedSchema.optional();
             }
 
-            schemaBuilder.field(entry.getKey(), unionedSchema);
+            schemaBuilder.field(entry.getKey(), unionedSchema.build());
         }
 
         return schemaBuilder.build();

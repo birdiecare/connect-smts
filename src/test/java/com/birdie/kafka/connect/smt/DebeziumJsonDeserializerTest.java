@@ -107,6 +107,23 @@ public class DebeziumJsonDeserializerTest {
     }
 
     @Test
+    public void transformsAnArrayOfStruct() {
+        Struct value = new Struct(simpleSchema);
+        value.put("id", "1234-5678");
+        value.put("json", "{\n" +
+                "  \"field1\": [{\"id\": 1}]\n" +
+                "  \"field2\": [{\"id\": 2}, {\"id\": 3}]\n" +
+                "}");
+
+        final SourceRecord transformedRecord = doTransform(value);
+
+        Schema jsonSchema = transformedRecord.valueSchema().field("json").schema();
+        assertEquals(Schema.Type.STRUCT, jsonSchema.type());
+        assertEquals(Schema.Type.ARRAY, jsonSchema.field("field1").schema().type());
+        assertEquals(jsonSchema.field("field1").schema().valueSchema().fields(), jsonSchema.field("field2").schema().valueSchema().fields());
+    }
+
+    @Test
     public void transformsAnArrayOfDifferentStructsWithRequiredCommonFields() {
         Struct value = new Struct(simpleSchema);
         value.put("id", "1234-5678");
@@ -165,7 +182,7 @@ public class DebeziumJsonDeserializerTest {
     }
 
     @Test
-    public void transformsAnJsonOfDifferentStructsWithOptionalFields() {
+    public void transformsAJsonOfDifferentStructsWithOptionalFields() {
         Struct value = new Struct(simpleSchema);
         value.put("id", "1234-5678");
         value.put("json", "{\n" +

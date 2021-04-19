@@ -237,4 +237,40 @@ public class DebeziumJsonDeserializerTest {
 
         doTransform(value);
     }
+
+    @Test
+    public void leavesIntegersWithoutConvertOption() {
+        Struct value = new Struct(simpleSchema);
+        value.put("id", "1234-5678");
+        value.put("json", "[\n" +
+                "  {\"id\": 1, \"temperature\": 37.5},\n" +
+                "]");
+
+        final SourceRecord transformedRecord = doTransform(value);
+
+        Schema transformedValueSchema = transformedRecord.valueSchema();
+
+        Schema jsonSchema = transformedValueSchema.field("json").schema();
+        assertEquals(Schema.Type.INT64, jsonSchema.valueSchema().field("id").schema().type());
+        assertEquals(Schema.Type.FLOAT64, jsonSchema.valueSchema().field("temperature").schema().type());
+    }
+
+    @Test
+    public void transformsIntegersIntoFloatsWithConvertOption() {
+        Struct value = new Struct(simpleSchema);
+        value.put("id", "1234-5678");
+        value.put("json", "[\n" +
+        "  {\"id\": 1, \"temperature\": 37.5},\n" +
+        "]");
+
+        final SourceRecord transformedRecord = doTransform(value, new HashMap<>() {{
+           put("convert-numbers-to-double", "true");
+        }});
+
+        Schema transformedValueSchema = transformedRecord.valueSchema();
+
+        Schema arraySchema = transformedValueSchema.field("json").schema();
+        assertEquals(Schema.Type.FLOAT64, arraySchema.valueSchema().field("id").schema().type());
+        assertEquals(Schema.Type.FLOAT64, arraySchema.valueSchema().field("temperature").schema().type());
+    }
 }

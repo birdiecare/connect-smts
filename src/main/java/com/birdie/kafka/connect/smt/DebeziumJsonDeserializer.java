@@ -15,10 +15,12 @@ import java.util.Map;
 public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
     private interface ConfigName {
         String OPTIONAL_STRUCT_FIELDS = "optional-struct-fields";
+        String CONVERT_NUMBERS_TO_DOUBLE = "convert-numbers-to-double";
     }
 
     public static final ConfigDef CONFIG_DEF = new ConfigDef()
-            .define(ConfigName.OPTIONAL_STRUCT_FIELDS, ConfigDef.Type.BOOLEAN, false, ConfigDef.Importance.MEDIUM, "When true, all struct fields are optional.");
+            .define(ConfigName.OPTIONAL_STRUCT_FIELDS, ConfigDef.Type.BOOLEAN, false, ConfigDef.Importance.MEDIUM, "When true, all struct fields are optional.")
+            .define(ConfigName.CONVERT_NUMBERS_TO_DOUBLE, ConfigDef.Type.BOOLEAN, false, ConfigDef.Importance.MEDIUM, "When true, integers in structs are converted to doubles.");
 
     private SchemaTransformer schemaTransformer;
 
@@ -84,7 +86,8 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
         final SimpleConfig config = new SimpleConfig(CONFIG_DEF, props);
 
         schemaTransformer = new SchemaTransformer(
-                config.getBoolean(ConfigName.OPTIONAL_STRUCT_FIELDS)
+                config.getBoolean(ConfigName.OPTIONAL_STRUCT_FIELDS),
+                config.getBoolean(ConfigName.CONVERT_NUMBERS_TO_DOUBLE)
         );
     }
 }

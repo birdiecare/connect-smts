@@ -13,9 +13,11 @@ import java.util.stream.Stream;
 
 public class SchemaTransformer {
     private boolean optionalStructFields;
+    private boolean convertNumbersToDouble;
 
-    public SchemaTransformer(boolean optionalStructFields) {
+    public SchemaTransformer(boolean optionalStructFields, boolean convertNumbersToDouble) {
         this.optionalStructFields = optionalStructFields;
+        this.convertNumbersToDouble = convertNumbersToDouble;
     }
 
     public SchemaAndValue transform(Field field, String jsonValue) throws ParseException {
@@ -98,8 +100,15 @@ public class SchemaTransformer {
         } else if (obj == null) {
             return null;
         }
+        
+        Schema.Type objSchemaType = Values.inferSchema(obj).type();
+        
+        if (convertNumbersToDouble && objSchemaType == Schema.Type.INT64) {
+            obj = Double.valueOf(obj.toString());
+            objSchemaType = Schema.Type.FLOAT64;
+        }
 
-        SchemaBuilder schemaBuilder = new SchemaBuilder(Values.inferSchema(obj).type());
+        SchemaBuilder schemaBuilder = new SchemaBuilder(objSchemaType);
 
         if (optionalStructFields) {
             schemaBuilder.optional();

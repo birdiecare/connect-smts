@@ -15,6 +15,17 @@ public class SchemaTransformer {
     private boolean optionalStructFields;
     private boolean convertNumbersToDouble;
 
+    private static final Set<Schema.Type> numberSchemaTypes = new HashSet<Schema.Type>(Arrays.asList(
+        Schema.Type.INT8,
+        Schema.Type.INT16,
+        Schema.Type.INT32,
+        Schema.Type.INT64,
+        Schema.Type.FLOAT32
+    ));
+    private Boolean isNumberType(Schema.Type schemaType) {
+        return numberSchemaTypes.contains(schemaType);
+    }
+
     public SchemaTransformer(boolean optionalStructFields, boolean convertNumbersToDouble) {
         this.optionalStructFields = optionalStructFields;
         this.convertNumbersToDouble = convertNumbersToDouble;
@@ -102,8 +113,8 @@ public class SchemaTransformer {
         }
         
         Schema.Type objSchemaType = Values.inferSchema(obj).type();
-        
-        if (convertNumbersToDouble && objSchemaType == Schema.Type.INT64) {
+
+        if (convertNumbersToDouble && isNumberType(objSchemaType)) {
             obj = Double.valueOf(obj.toString());
             objSchemaType = Schema.Type.FLOAT64;
         }

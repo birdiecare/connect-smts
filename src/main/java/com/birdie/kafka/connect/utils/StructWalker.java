@@ -16,7 +16,7 @@ public class StructWalker {
             Function<T, String> identifierFn,
             Function<T, SchemaAndValue> transformerFn
     ) {
-        return walk(name, items, identifierFn, transformerFn, false);
+        return walk(name, items, identifierFn, transformerFn, false, false);
     }
 
     public static <T> SchemaAndValue walk(
@@ -24,15 +24,16 @@ public class StructWalker {
             Collection<T> items,
             Function<T, String> identifierFn,
             Function<T, SchemaAndValue> transformerFn,
-            Boolean optionalStructFields
+            boolean optionalStructFields,
+            boolean sanitizeFieldsName
     ) {
         SchemaBuilder builder = SchemaBuilder.struct().name(name);
         HashMap<String, Object> valuesPerField = new HashMap<>();
 
         for (T item: items) {
-            String identifier = AvroUtils.sanitizeColumnName(
-                identifierFn.apply(item)
-            );
+            String identifier = sanitizeFieldsName
+                    ? AvroUtils.sanitizeColumnName(identifierFn.apply(item))
+                    : identifierFn.apply(item);
 
             SchemaAndValue field = transformerFn.apply(item);
 

@@ -281,7 +281,9 @@ public class DebeziumJsonDeserializerTest {
         value.put("id", "1234-5678");
         value.put("json", "{\"with space\": 10, \"1some_details\":{\"sub key\": \"plop\"}}");
 
-        final SourceRecord transformedRecord = doTransform(value);
+        final SourceRecord transformedRecord = doTransform(value, new HashMap<>() {{
+            put("sanitize.field.names", "true");
+        }});
 
         Schema transformedValueSchema = transformedRecord.valueSchema();
 

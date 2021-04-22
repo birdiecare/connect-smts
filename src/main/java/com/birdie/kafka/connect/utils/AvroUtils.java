@@ -3,6 +3,11 @@ package com.birdie.kafka.connect.utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+// DON'T CHANGE ME.
+//
+// This piece of code is copy/pasted from Debezium's core:
+// https://github.com/debezium/debezium/blob/672f9588531be5c5426cef10ee733878174afada/debezium-core/src/main/java/io/debezium/schema/FieldNameSelector.java#L41-L94
+
 public class AvroUtils {
     private static final String REPLACEMENT_CHAR = "_";
     private static final String NUMBER_PREFIX = "_";

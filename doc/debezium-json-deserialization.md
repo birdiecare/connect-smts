@@ -22,3 +22,4 @@ transforms.json.optional-struct-fields=true
 |---|---|---|---|
 |`optional-struct-fields`| When `true`, all fields in structs are optional. This enables you to have slightly different types within each array item for example, so long that every field with the same name as the same type. | Boolean | `false` |
 |`convert-numbers-to-double`| When `true`, all number fields in structs are converted to double. This avoids compatibility errors when some fields can contain both integers and floats. | Boolean | `false` |
+|`sanitize.field.names`| When `true`, sanitizes the fields name so they are compatible with Avro. | Boolean | `false` |

@@ -15,6 +15,7 @@ import java.util.stream.Stream;
 public class SchemaTransformer {
     private boolean optionalStructFields;
     private boolean convertNumbersToDouble;
+    private boolean sanitizeFieldsName;
 
     private static final Set<Schema.Type> numberSchemaTypes = new HashSet<Schema.Type>(Arrays.asList(
         Schema.Type.INT8,
@@ -27,9 +28,10 @@ public class SchemaTransformer {
         return numberSchemaTypes.contains(schemaType);
     }
 
-    public SchemaTransformer(boolean optionalStructFields, boolean convertNumbersToDouble) {
+    public SchemaTransformer(boolean optionalStructFields, boolean convertNumbersToDouble, boolean sanitizeFieldsName) {
         this.optionalStructFields = optionalStructFields;
         this.convertNumbersToDouble = convertNumbersToDouble;
+        this.sanitizeFieldsName = sanitizeFieldsName;
     }
 
     public SchemaAndValue transform(Field field, String jsonValue) throws ParseException {
@@ -48,7 +50,8 @@ public class SchemaTransformer {
                     (Set<Map.Entry<String, Object>>) object.entrySet(),
                     entry -> entry.getKey(),
                     entry -> transformJsonValue(entry.getValue(), key+"_"+entry.getKey()),
-                    optionalStructFields
+                    optionalStructFields,
+                    sanitizeFieldsName
             );
         } else if (obj instanceof JSONArray) {
             Schema childSchema = null;

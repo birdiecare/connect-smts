@@ -1,5 +1,6 @@
 package com.birdie.kafka.connect.json;
 
+import com.birdie.kafka.connect.utils.AvroUtils;
 import com.birdie.kafka.connect.utils.StructWalker;
 import org.apache.kafka.connect.data.*;
 import org.json.simple.JSONArray;
@@ -125,7 +126,7 @@ public class SchemaTransformer {
             schemaBuilder.optional();
         }
 
-        return new SchemaAndValue(schemaBuilder.build(), obj);
+        return new SchemaAndValue(schemaBuilder.name(key).build(), obj);
     }
 
     Schema unionStruct(Schema left, Schema right) {

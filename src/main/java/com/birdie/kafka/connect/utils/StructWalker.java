@@ -26,11 +26,17 @@ public class StructWalker {
             Function<T, SchemaAndValue> transformerFn,
             Boolean optionalStructFields
     ) {
-        SchemaBuilder builder = SchemaBuilder.struct().name(name);
+        SchemaBuilder builder = SchemaBuilder.struct().name(
+            AvroUtils.sanitizeColumnName(name)
+        );
+
         HashMap<String, Object> valuesPerField = new HashMap<>();
 
         for (T item: items) {
-            String identifier = identifierFn.apply(item);
+            String identifier = AvroUtils.sanitizeColumnName(
+                identifierFn.apply(item)
+            );
+
             SchemaAndValue field = transformerFn.apply(item);
 
             if (field != null) {

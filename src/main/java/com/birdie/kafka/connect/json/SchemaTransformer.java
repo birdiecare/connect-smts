@@ -126,7 +126,7 @@ public class SchemaTransformer {
             schemaBuilder.optional();
         }
 
-        return new SchemaAndValue(schemaBuilder.name(key).build(), obj);
+        return new SchemaAndValue(schemaBuilder.build(), obj);
     }
 
     Schema unionStruct(Schema left, Schema right) {

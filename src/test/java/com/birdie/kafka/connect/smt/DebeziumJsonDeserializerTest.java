@@ -1,5 +1,6 @@
 package com.birdie.kafka.connect.smt;
 
+import org.apache.kafka.connect.data.Field;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
@@ -272,5 +273,29 @@ public class DebeziumJsonDeserializerTest {
         Schema arraySchema = transformedValueSchema.field("json").schema();
         assertEquals(Schema.Type.FLOAT64, arraySchema.valueSchema().field("id").schema().type());
         assertEquals(Schema.Type.FLOAT64, arraySchema.valueSchema().field("temperature").schema().type());
+    }
+
+    @Test
+    public void itDoesProduceValidAvroNamesFromJsonProperties() {
+        Struct value = new Struct(simpleSchema);
+        value.put("id", "1234-5678");
+        value.put("json", "{\"with space\": 10, \"1some_details\":{\"sub key\": \"plop\"}}");
+
+        final SourceRecord transformedRecord = doTransform(value, new HashMap<>() {{
+            put("sanitize.field.names", "true");
+        }});
+
+        Schema transformedValueSchema = transformedRecord.valueSchema();
+
+        assertNotNull(transformedValueSchema);
+        assertNotNull(transformedValueSchema.field("json"));
+
+        Schema jsonSchema = transformedValueSchema.field("json").schema();
+
+        assertEquals(Schema.Type.STRUCT, jsonSchema.type());
+        assertNotNull(jsonSchema.field("with_space"));
+        assertEquals("with_space", jsonSchema.field("with_space").name());
+        assertNotNull(jsonSchema.field("_1some_details"));
+        assertNotNull(jsonSchema.field("_1some_details").schema().field("sub_key"));
     }
 }

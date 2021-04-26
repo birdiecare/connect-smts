@@ -2,7 +2,6 @@ package com.birdie.kafka.connect.json;
 
 import com.birdie.kafka.connect.utils.StructWalker;
 import org.apache.kafka.connect.data.*;
-import org.apache.kafka.connect.errors.DataException;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
@@ -10,7 +9,6 @@ import org.json.simple.parser.ParseException;
 
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class SchemaTransformer {
     private boolean optionalStructFields;

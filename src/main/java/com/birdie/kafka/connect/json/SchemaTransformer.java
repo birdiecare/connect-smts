@@ -161,12 +161,10 @@ public class SchemaTransformer {
             SchemaBuilder schemaBuilder = SchemaBuilder.struct()
                     .name(schemas[0].name());
 
-            Stream<List<Field>> listStream = List.of(schemas)
-                    .stream()
-                    .map(Schema::fields);
-
             Map<String, List<Field>> fieldsByName =
-                    listStream
+                    List.of(schemas)
+                            .stream()
+                            .map(Schema::fields)
                             .flatMap(Collection::stream)
                             .collect(Collectors.groupingBy(Field::name));
 

@@ -1,6 +1,5 @@
 package com.birdie.kafka.connect.smt;
 
-import org.apache.kafka.connect.data.Field;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
@@ -297,5 +296,39 @@ public class DebeziumJsonDeserializerTest {
         assertEquals("with_space", jsonSchema.field("with_space").name());
         assertNotNull(jsonSchema.field("_1some_details"));
         assertNotNull(jsonSchema.field("_1some_details").schema().field("sub_key"));
+    }
+
+    @Test
+    public void transformsArraysWithinNestedArrays() {
+        Struct value = new Struct(simpleSchema);
+        value.put("id", "1234-5678");
+        value.put("json", "[{\"id\": 1, \"values\": [1, 2]}, {\"id\": 2, \"values\": [3, 4]}]");
+
+        final SourceRecord transformedRecord = doTransform(value, new HashMap<>() {{
+            put("optional-struct-fields", "true");
+        }});
+
+        Schema transformedValueSchema = transformedRecord.valueSchema();
+
+        assertNotNull(transformedValueSchema);
+        assertNotNull(transformedValueSchema.field("json"));
+        assertNotNull(transformedValueSchema.field("json").schema().valueSchema().field("id"));
+        assertNotNull(transformedValueSchema.field("json").schema().valueSchema().field("values"));
+    }
+
+    @Test
+    public void transformsArraysWithinNestedStructures() {
+        Struct value = new Struct(simpleSchema);
+        value.put("id", "1234-5678");
+        value.put("json", "[{\"id\": 1, \"values\": {\"field1\": 1, \"field2\": [1, 2]}}, {\"id\": 2, \"values\": {\"field1\": 2, \"field2\": [1, 2, 3]}}]");
+
+        final SourceRecord transformedRecord = doTransform(value);
+        Schema transformedValueSchema = transformedRecord.valueSchema();
+
+        assertNotNull(transformedValueSchema);
+        assertNotNull(transformedValueSchema.field("json"));
+        assertNotNull(transformedValueSchema.field("json").schema().valueSchema().field("values"));
+        assertNotNull(transformedValueSchema.field("json").schema().valueSchema().field("values").schema().field("field1"));
+        assertNotNull(transformedValueSchema.field("json").schema().valueSchema().field("values").schema().field("field2"));
     }
 }

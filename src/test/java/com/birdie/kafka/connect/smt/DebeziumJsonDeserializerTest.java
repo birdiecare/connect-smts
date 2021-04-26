@@ -307,7 +307,7 @@ public class DebeziumJsonDeserializerTest {
     public void itDoesProduceValidAvroNamesFromJsonProperties() {
         Struct value = new Struct(simpleSchema);
         value.put("id", "1234-5678");
-        value.put("json", "{\"with space\": 10, \"1some_details\":{\"sub key\": \"plop\"}}");
+        value.put("json", "{\"with space\": 10, \"1some_details\":{\"sub key\": \"plop\", \"_childrenNavigation\":{\"id-1611255248160-29\":{\"state\":{\"params\":{\"recipientId\":\"cd1a413e-446c-50bd-8b74-5e59606f383d\"}}}}}}");
 
         final SourceRecord transformedRecord = doTransform(value, new HashMap<>() {{
             put("sanitize.field.names", "true");
@@ -322,9 +322,12 @@ public class DebeziumJsonDeserializerTest {
 
         assertEquals(Schema.Type.STRUCT, jsonSchema.type());
         assertNotNull(jsonSchema.field("with_space"));
-        assertEquals("with_space", jsonSchema.field("with_space").name());
         assertNotNull(jsonSchema.field("_1some_details"));
+        assertEquals("json__1some_details", jsonSchema.field("_1some_details").schema().name());
         assertNotNull(jsonSchema.field("_1some_details").schema().field("sub_key"));
+        assertNotNull(jsonSchema.field("_1some_details").schema().field("_childrenNavigation"));
+        assertNotNull(jsonSchema.field("_1some_details").schema().field("_childrenNavigation").schema().field("id_1611255248160_29"));
+        assertEquals("json__1some_details__childrenNavigation_id_1611255248160_29", jsonSchema.field("_1some_details").schema().field("_childrenNavigation").schema().field("id_1611255248160_29").schema().name());
     }
 
     @Test

@@ -1,5 +1,6 @@
 package com.birdie.kafka.connect.json;
 
+import com.birdie.kafka.connect.utils.AvroUtils;
 import com.birdie.kafka.connect.utils.StructWalker;
 import org.apache.kafka.connect.data.*;
 import org.json.simple.JSONArray;
@@ -46,14 +47,22 @@ public class SchemaTransformer {
     SchemaAndValue transformJsonValue(Object obj, String key) {
         if (obj instanceof JSONObject) {
             JSONObject object = (JSONObject) obj;
+            List<Map.Entry<String, Object>> listOfEntries = new ArrayList<>();
+            for (Map.Entry<String, Object> entry : (Set<Map.Entry<String, Object>>) object.entrySet()) {
+                listOfEntries.add(
+                    new AbstractMap.SimpleEntry<>(
+                        this.sanitizeFieldsName ? AvroUtils.sanitizeColumnName(entry.getKey()) : entry.getKey(),
+                        entry.getValue()
+                    )
+                );
+            }
 
             return StructWalker.walk(
                     key,
-                    (Set<Map.Entry<String, Object>>) object.entrySet(),
+                    listOfEntries,
                     entry -> entry.getKey(),
                     entry -> transformJsonValue(entry.getValue(), key+"_"+entry.getKey()),
-                    optionalStructFields,
-                    sanitizeFieldsName
+                    optionalStructFields
             );
         } else if (obj instanceof JSONArray) {
             List<SchemaAndValue> transformed = (List<SchemaAndValue>) ((JSONArray) obj).stream().map(

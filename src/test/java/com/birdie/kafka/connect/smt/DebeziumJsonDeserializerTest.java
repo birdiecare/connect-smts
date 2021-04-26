@@ -1,6 +1,5 @@
 package com.birdie.kafka.connect.smt;
 
-import org.apache.kafka.connect.data.Field;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
@@ -298,4 +297,32 @@ public class DebeziumJsonDeserializerTest {
         assertNotNull(jsonSchema.field("_1some_details"));
         assertNotNull(jsonSchema.field("_1some_details").schema().field("sub_key"));
     }
+
+    @Test
+    public void doesNotThrowNullException() {
+        Struct value = new Struct(simpleSchema);
+        value.put("id", "1234-5678");
+        value.put("json", "[{\"id\": 1, \"values\": [1, 2]}, {\"id\": 2, \"values\": [3, 4]}]");
+
+        final SourceRecord transformedRecord = doTransform(value);
+        Schema transformedValueSchema = transformedRecord.valueSchema();
+
+        assertNotNull(transformedValueSchema);
+        assertNotNull(transformedValueSchema.field("json"));
+    }
+
+    @Test
+    public void structSchemasDoNotMatch() {
+        Struct value = new Struct(simpleSchema);
+        value.put("id", "1234-5678");
+        value.put("json", "[{\"id\": 1, \"values\": {\"field1\": 1}}, {\"id\": 2, \"values\": {\"field1\": 2}}]");
+
+        final SourceRecord transformedRecord = doTransform(value);
+        Schema transformedValueSchema = transformedRecord.valueSchema();
+
+        assertNotNull(transformedValueSchema);
+        assertNotNull(transformedValueSchema.field("json"));
+    }
 }
+
+// {"reason":"ValidationError: id, care_recipient_id","validation_errors":[{"property":"id","value":"1099156","constraints":{"isUuid":"id must be an UUID"}},{"property":"care_recipient_id","value":"2510","constraints":{"isUuid":"care_recipient_id must be an UUID"}}],"id":"8d90d51a-f1cd-481b-bacb-29fcfd119177","timestamp":"2020-10-02T09:01:47.177Z","event_type":"visit_synchronisation_failed","agency_id":"21483479-6acb-4e50-89cd-e21e039dd120","remote_id":"1099156"}

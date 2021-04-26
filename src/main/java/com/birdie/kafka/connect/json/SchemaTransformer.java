@@ -82,8 +82,15 @@ public class SchemaTransformer {
                     }
 
                     Struct repackagedStructure = new Struct(childSchema);
+                    System.out.println(transformedChild);
+                    System.out.println(((Struct) transformedChild).schema().fields());
                     for (Field field: ((Struct) transformedChild).schema().fields()) {
-                        repackagedStructure.put(field.name(), ((Struct) transformedChild).get(field.name()));
+                        String fieldName = field.name();
+                        System.out.println(fieldName);
+                        Object fieldValue = ((Struct) transformedChild).get(fieldName);
+                        System.out.println(fieldValue);
+                        repackagedStructure.put(fieldName, fieldValue);
+                        System.out.println(repackagedStructure);
                     }
 
                     repackagedStructured.add(repackagedStructure);

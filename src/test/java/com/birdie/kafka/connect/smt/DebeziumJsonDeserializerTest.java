@@ -299,30 +299,36 @@ public class DebeziumJsonDeserializerTest {
     }
 
     @Test
-    public void doesNotThrowNullException() {
+    public void transformsArraysWithinNestedArrays() {
         Struct value = new Struct(simpleSchema);
         value.put("id", "1234-5678");
         value.put("json", "[{\"id\": 1, \"values\": [1, 2]}, {\"id\": 2, \"values\": [3, 4]}]");
 
-        final SourceRecord transformedRecord = doTransform(value);
+        final SourceRecord transformedRecord = doTransform(value, new HashMap<>() {{
+            put("optional-struct-fields", "true");
+        }});
+
         Schema transformedValueSchema = transformedRecord.valueSchema();
 
         assertNotNull(transformedValueSchema);
         assertNotNull(transformedValueSchema.field("json"));
+        assertNotNull(transformedValueSchema.field("json").schema().valueSchema().field("id"));
+        assertNotNull(transformedValueSchema.field("json").schema().valueSchema().field("values"));
     }
 
     @Test
-    public void structSchemasDoNotMatch() {
+    public void transformsArraysWithinNestedStructures() {
         Struct value = new Struct(simpleSchema);
         value.put("id", "1234-5678");
-        value.put("json", "[{\"id\": 1, \"values\": {\"field1\": 1}}, {\"id\": 2, \"values\": {\"field1\": 2}}]");
+        value.put("json", "[{\"id\": 1, \"values\": {\"field1\": 1, \"field2\": [1, 2]}}, {\"id\": 2, \"values\": {\"field1\": 2, \"field2\": [1, 2, 3]}}]");
 
         final SourceRecord transformedRecord = doTransform(value);
         Schema transformedValueSchema = transformedRecord.valueSchema();
 
         assertNotNull(transformedValueSchema);
         assertNotNull(transformedValueSchema.field("json"));
+        assertNotNull(transformedValueSchema.field("json").schema().valueSchema().field("values"));
+        assertNotNull(transformedValueSchema.field("json").schema().valueSchema().field("values").schema().field("field1"));
+        assertNotNull(transformedValueSchema.field("json").schema().valueSchema().field("values").schema().field("field2"));
     }
 }
-
-// {"reason":"ValidationError: id, care_recipient_id","validation_errors":[{"property":"id","value":"1099156","constraints":{"isUuid":"id must be an UUID"}},{"property":"care_recipient_id","value":"2510","constraints":{"isUuid":"care_recipient_id must be an UUID"}}],"id":"8d90d51a-f1cd-481b-bacb-29fcfd119177","timestamp":"2020-10-02T09:01:47.177Z","event_type":"visit_synchronisation_failed","agency_id":"21483479-6acb-4e50-89cd-e21e039dd120","remote_id":"1099156"}

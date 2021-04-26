@@ -28,6 +28,11 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
 
     @Override
     public SourceRecord apply(SourceRecord record) {
+        // Ignores tombstones
+        if (record.value() == null) {
+            return record;
+        }
+
         if (record.valueSchema() == null) {
             throw new IllegalArgumentException("Only applies on messages with schema ("+ LoggingContext.createContext(record)+")");
         }

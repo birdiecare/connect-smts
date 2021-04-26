@@ -18,15 +18,19 @@ public class DebeziumJsonDeserializerTest {
         .field("json", SchemaBuilder.string().name("io.debezium.data.Json").optional().build())
         .build();
 
+    private SourceRecord doTransform(SourceRecord record, Map<String, ?> props) {
+        DebeziumJsonDeserializer transformer = new DebeziumJsonDeserializer();
+        transformer.configure(props);
+
+        return transformer.apply(record);
+    }
+
     private SourceRecord doTransform(Struct value, Map<String, ?> props) {
         final SourceRecord record = new SourceRecord(
                 null, null, "test", 0,
                 SchemaBuilder.bytes().optional().build(), "key".getBytes(), simpleSchema, value);
 
-        DebeziumJsonDeserializer transformer = new DebeziumJsonDeserializer();
-        transformer.configure(props);
-
-        return transformer.apply(record);
+        return doTransform(record, props);
     }
 
     private SourceRecord doTransform(Struct value) {
@@ -355,5 +359,16 @@ public class DebeziumJsonDeserializerTest {
         assertNotNull(transformedValueSchema.field("json").schema().valueSchema().field("values"));
         assertNotNull(transformedValueSchema.field("json").schema().valueSchema().field("values").schema().field("field1"));
         assertNotNull(transformedValueSchema.field("json").schema().valueSchema().field("values").schema().field("field2"));
+    }
+
+    @Test
+    public void skipsTombstones() {
+        final SourceRecord record = new SourceRecord(
+                null, null, "test", 0,
+                SchemaBuilder.bytes().optional().build(), "key".getBytes(), null, null);
+
+        final SourceRecord transformedRecord = doTransform(record, new HashMap<>());
+
+        assertEquals(record, transformedRecord);
     }
 }

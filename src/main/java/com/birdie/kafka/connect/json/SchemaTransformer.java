@@ -35,6 +35,9 @@ public class SchemaTransformer {
     }
 
     public SchemaAndValue transform(Field field, String jsonValue) {
+        if (jsonValue == "") {
+            return new SchemaAndValue(Schema.STRING_SCHEMA, "");
+        }
         try {
             return transformJsonValue(
                 new JSONParser().parse(jsonValue),

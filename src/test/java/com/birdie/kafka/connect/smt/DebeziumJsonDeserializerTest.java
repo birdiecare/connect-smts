@@ -229,6 +229,19 @@ public class DebeziumJsonDeserializerTest {
         assertEquals(Schema.Type.STRUCT, jsonSchema.type());
     }
 
+    @Test
+    public void transformsEmptyString() {
+        Struct value = new Struct(simpleSchema);
+        value.put("id", "1234-5678");
+        value.put("json", "");
+
+        final SourceRecord transformedRecord = doTransform(value);
+
+        Schema transformedValueSchema = transformedRecord.valueSchema();
+        Schema jsonSchema = transformedValueSchema.field("json").schema();
+        assertEquals(Schema.Type.STRING, jsonSchema.type());
+    }
+
     @Test(expected = IllegalArgumentException.class)
     public void refuseArrayOfDifferentType() {
         Struct value = new Struct(simpleSchema);

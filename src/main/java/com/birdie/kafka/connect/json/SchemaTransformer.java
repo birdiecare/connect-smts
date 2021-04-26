@@ -58,10 +58,8 @@ public class SchemaTransformer {
                     child -> transformJsonValue(child, key+"_array_item")
             ).collect(Collectors.toList());
 
-            SchemaBuilder transformedSchemaBuilder = unionSchemas(
-                transformed.stream().map(SchemaAndValue::schema).toArray(Schema[]::new)
-            );
-            Schema transformedSchema = transformedSchemaBuilder != null ? transformedSchemaBuilder.build() : null;
+            Schema[] transformedSchemas = transformed.stream().map(SchemaAndValue::schema).toArray(Schema[]::new);
+            Schema transformedSchema = transformedSchemas.length > 0 ? unionSchemas(transformedSchemas).build() : null;
 
             List<Object> transformedChildren = transformed.stream().map(SchemaAndValue::value).collect(Collectors.toList());
 
@@ -78,10 +76,7 @@ public class SchemaTransformer {
                     Struct repackagedStructure = new Struct(transformedSchema);
 
                     for (Field field: transformedStruct.schema().fields()) {
-                        String fieldName = field.name();
-                        Object fieldValue = transformedStruct.get(fieldName);
-
-                        repackagedStructure.put(fieldName, fieldValue);
+                        repackagedStructure.put(field.name(), transformedStruct.get(field.name()));
                     }
 
                     repackagedStructured.add(repackagedStructure);
@@ -133,8 +128,7 @@ public class SchemaTransformer {
 
     SchemaBuilder unionSchemas(Schema ...schemas) {
         if (schemas.length == 0) {
-            return null;
-//            throw new IllegalArgumentException("We can't union-ize an empty list of schemas.");
+            throw new IllegalArgumentException("We can't union-ize an empty list of schemas.");
         }
 
         List<String> types = List.of(schemas)
@@ -177,11 +171,13 @@ public class SchemaTransformer {
                             .collect(Collectors.groupingBy(Field::name));
 
             for (Map.Entry<String, List<Field>> entry : fieldsByName.entrySet()) {
+                List<Field> fields = entry.getValue();
+
                 SchemaBuilder unionedSchema = unionSchemas(
-                    entry.getValue().stream().map(Field::schema).toArray(Schema[]::new)
+                    fields.stream().map(Field::schema).toArray(Schema[]::new)
                 );
 
-                if (entry.getValue().size() != schemas.length || optionalStructFields) {
+                if (fields.size() != schemas.length || optionalStructFields) {
                     unionedSchema.optional();
                 }
 

@@ -50,7 +50,7 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
                     }
 
                     String jsonString = (String) value.get(field.name());
-                    if (jsonString == null) {
+                    if (jsonString == null || "".equals(jsonString)) {
                         return null;
                     }
 

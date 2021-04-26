@@ -56,7 +56,7 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
 
                     try {
                         return schemaTransformer.transform(field, jsonString);
-                    } catch (ParseException e) {
+                    } catch (IllegalArgumentException e) {
                         throw new IllegalArgumentException("Cannot transform schema for type "+field.name()+". ("+LoggingContext.createContext(record)+")", e);
                     }
                 }

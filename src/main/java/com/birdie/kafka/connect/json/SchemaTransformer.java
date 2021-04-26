@@ -34,11 +34,15 @@ public class SchemaTransformer {
         this.sanitizeFieldsName = sanitizeFieldsName;
     }
 
-    public SchemaAndValue transform(Field field, String jsonValue) throws ParseException {
-        return transformJsonValue(
+    public SchemaAndValue transform(Field field, String jsonValue) {
+        try {
+            return transformJsonValue(
                 new JSONParser().parse(jsonValue),
                 field.name()
-        );
+            );
+        } catch (ParseException e) {
+            throw new IllegalArgumentException("Cannot parse JSON value \""+jsonValue+"\"", e);
+        } 
     }
 
     SchemaAndValue transformJsonValue(Object obj, String key) {

@@ -1,8 +1,10 @@
 package com.birdie.kafka.connect.json;
 
 import com.birdie.kafka.connect.utils.AvroUtils;
+import com.birdie.kafka.connect.utils.LoggingContext;
 import com.birdie.kafka.connect.utils.StructWalker;
 import org.apache.kafka.connect.data.*;
+import org.apache.kafka.connect.errors.DataException;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
@@ -79,18 +81,12 @@ public class SchemaTransformer {
                 List<Object> repackagedStructured = new ArrayList<>();
 
                 for (SchemaAndValue transformedChild: transformed) {
-                    if (!(transformedChild.value() instanceof Struct)) {
-                        throw new IllegalArgumentException("A child for a structure has an invalid type: "+transformedChild.value().getClass().getName()+".");
+                    Object value = transformedChild.value();
+                    if (!(value instanceof Struct)) {
+                        throw new IllegalArgumentException("A child for a structure has an invalid type: "+value.getClass().getName()+".");
                     }
 
-                    Struct transformedStruct = (Struct) transformedChild.value();
-                    Struct repackagedStructure = new Struct(transformedSchema);
-
-                    for (Field field: transformedStruct.schema().fields()) {
-                        repackagedStructure.put(field.name(), transformedStruct.get(field.name()));
-                    }
-
-                    repackagedStructured.add(repackagedStructure);
+                    repackagedStructured.add(repackageStructure(transformedSchema, (Struct) transformedChild.value()));
                 }
 
                 // Replace.
@@ -135,6 +131,31 @@ public class SchemaTransformer {
         }
 
         return new SchemaAndValue(schemaBuilder.build(), obj);
+    }
+
+    private Struct repackageStructure(Schema transformedSchema, Struct transformedStruct) {
+        Struct repackagedStructure = new Struct(transformedSchema);
+
+        for (Field field: transformedStruct.schema().fields()) {
+            Object value = transformedStruct.get(field.name());
+            Schema expectedSchema = transformedSchema.field(field.name()).schema();
+
+            if (expectedSchema.type().equals(Schema.Type.STRUCT)) {
+                if (!(value instanceof Struct)) {
+                    throw new IllegalArgumentException("Expected value of type STRUCT, got "+value.getClass().getName());
+                }
+
+                value = repackageStructure(expectedSchema, (Struct) value);
+            }
+
+            try {
+                repackagedStructure.put(field.name(), value);
+            } catch (DataException e) {
+                throw new IllegalArgumentException("Could not construct struct successfully for field "+field.name()+" and expected schema "+LoggingContext.describeSchema(expectedSchema), e);
+            }
+        }
+
+        return repackagedStructure;
     }
 
     SchemaBuilder unionSchemas(Schema ...schemas) {

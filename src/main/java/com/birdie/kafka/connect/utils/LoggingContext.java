@@ -1,6 +1,7 @@
 package com.birdie.kafka.connect.utils;
 
 import org.apache.kafka.connect.connector.ConnectRecord;
+import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.source.SourceRecord;
 
 import java.util.Map;
@@ -23,5 +24,10 @@ public class LoggingContext {
         }
 
         return context;
+    }
+
+    public static String describeSchema(Schema schema) {
+        return schema.toString()+" (#"+schema.hashCode()+") optional="+schema.isOptional()+" version="+schema.version()+" type="+schema.type()+" defaultValue="+schema.defaultValue()
+                + (schema.type().equals(Schema.Type.STRUCT) ? schema.fields() : "");
     }
 }

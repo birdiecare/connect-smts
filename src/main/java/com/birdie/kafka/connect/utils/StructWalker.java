@@ -52,6 +52,4 @@ public class StructWalker {
 
         return new SchemaAndValue(newSchema, newStruct);
     }
-
-
 }

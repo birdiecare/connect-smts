@@ -78,19 +78,7 @@ public class SchemaTransformer {
 
             // We need to re-create the `Struct` objects.
             if (transformedSchema != null && transformedSchema.type().equals(Schema.Type.STRUCT)) {
-                List<Object> repackagedStructured = new ArrayList<>();
-
-                for (SchemaAndValue transformedChild: transformed) {
-                    Object value = transformedChild.value();
-                    if (!(value instanceof Struct)) {
-                        throw new IllegalArgumentException("A child for a structure has an invalid type: "+value.getClass().getName()+".");
-                    }
-
-                    repackagedStructured.add(repackageStructure(transformedSchema, (Struct) transformedChild.value()));
-                }
-
-                // Replace.
-                transformedChildren = repackagedStructured;
+                transformedChildren = repackageList(transformedSchema, transformedChildren);
             }
 
             // By default, if array is empty, it's an empty struct
@@ -140,7 +128,9 @@ public class SchemaTransformer {
             Object value = transformedStruct.get(field.name());
             Schema expectedSchema = transformedSchema.field(field.name()).schema();
 
-            if (expectedSchema.type().equals(Schema.Type.STRUCT)) {
+            if (expectedSchema.type().equals(Schema.Type.ARRAY)) {
+                value = repackageList(expectedSchema.valueSchema(), value);
+            } else if (expectedSchema.type().equals(Schema.Type.STRUCT)) {
                 if (!(value instanceof Struct)) {
                     throw new IllegalArgumentException("Expected value of type STRUCT, got "+value.getClass().getName());
                 }
@@ -151,11 +141,33 @@ public class SchemaTransformer {
             try {
                 repackagedStructure.put(field.name(), value);
             } catch (DataException e) {
-                throw new IllegalArgumentException("Could not construct struct successfully for field "+field.name()+" and expected schema "+LoggingContext.describeSchema(expectedSchema), e);
+                Schema valueSchema = value instanceof Struct ? ((Struct) value).schema() : null;
+                throw new IllegalArgumentException("Could not construct struct successfully for field "+field.name()+": expected schema "+LoggingContext.describeSchema(expectedSchema)+"; received schema="+LoggingContext.describeSchema(valueSchema), e);
             }
         }
 
         return repackagedStructure;
+    }
+
+    private List<Object> repackageList(Schema itemSchema, Object value) {
+        if (!(value instanceof List)) {
+            throw new IllegalArgumentException("Expected value of schema type ARRAY to be a List but got "+value.getClass().getName());
+        }
+
+        if (!itemSchema.type().equals(Schema.Type.STRUCT)) {
+            return (List<Object>) value;
+        }
+
+        List<Object> repackagedStructured = new ArrayList<>();
+        for (Object child: (List<Object>) value) {
+            if (!(child instanceof Struct)) {
+                throw new IllegalArgumentException("A child for a structure has an invalid type: "+child.getClass().getName()+".");
+            }
+
+            repackagedStructured.add(repackageStructure(itemSchema, (Struct) child));
+        }
+
+        return repackagedStructured;
     }
 
     SchemaBuilder unionSchemas(Schema ...schemas) {
@@ -187,7 +199,9 @@ public class SchemaTransformer {
             }
 
             return SchemaBuilder.array(
-                schemas[0].valueSchema()
+                unionSchemas(
+                    List.of(schemas).stream().map(Schema::valueSchema).toArray(Schema[]::new)
+                )
             ).name(schemas[0].name());
         } else if (type.equals(Schema.Type.STRUCT)) {
             SchemaBuilder schemaBuilder = SchemaBuilder.struct()

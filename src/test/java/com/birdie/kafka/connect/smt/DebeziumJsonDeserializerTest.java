@@ -378,6 +378,19 @@ public class DebeziumJsonDeserializerTest {
     }
 
     @Test
+    public void transformsDifferentListItemsWithinStructWithinLists() {
+        Struct value = new Struct(simpleSchema);
+        value.put("id", "1234-5678");
+        value.put("json", "{\"a_list\": [{\"another_list\": []}, {\"another_list\": [{\"foo\": \"bar\"}]}]}");
+
+        final SourceRecord transformedRecord = doTransform(value);
+        Schema transformedValueSchema = transformedRecord.valueSchema();
+
+        assertNotNull(transformedValueSchema);
+        assertNotNull(transformedValueSchema.field("json"));
+    }
+
+    @Test
     public void skipsTombstones() {
         final SourceRecord record = new SourceRecord(
                 null, null, "test", 0,

@@ -365,6 +365,19 @@ public class DebeziumJsonDeserializerTest {
     }
 
     @Test
+    public void transformsNestedStructuresWithDifferentChildrenStructureWithinArrays() {
+        Struct value = new Struct(simpleSchema);
+        value.put("id", "1234-5678");
+        value.put("json", "{\"reason\":\"ValidationError: id, care_recipient_id\",\"validation_errors\":[{\"property\":\"id\",\"value\":\"7e70ffab-1200-1300--43894\",\"constraints\":{\"isUuid\":\"id must be an UUID\"}},{\"property\":\"care_recipient_id\",\"value\":\"\",\"constraints\":{\"isUuid\":\"care_recipient_id must be an UUID\",\"isNotEmpty\":\"care_recipient_id should not be empty\"}}],\"id\":\"3addd635-8df6-4c32-8035-6c328fb0fb27\",\"timestamp\":\"2020-02-28T11:00:30.987Z\",\"event_type\":\"visit_synchronisation_failed\",\"agency_id\":\"a4bb5719-96f6-4d2c-ac66-44a2e9c6a014\",\"remote_id\":\"7e70ffab-1200-1300--43894\"}");
+
+        final SourceRecord transformedRecord = doTransform(value);
+        Schema transformedValueSchema = transformedRecord.valueSchema();
+
+        assertNotNull(transformedValueSchema);
+        assertNotNull(transformedValueSchema.field("json"));
+    }
+
+    @Test
     public void skipsTombstones() {
         final SourceRecord record = new SourceRecord(
                 null, null, "test", 0,

@@ -27,7 +27,11 @@ public class LoggingContext {
     }
 
     public static String describeSchema(Schema schema) {
+        if (schema == null) {
+            return null;
+        }
+
         return schema.toString()+" (#"+schema.hashCode()+") optional="+schema.isOptional()+" version="+schema.version()+" type="+schema.type()+" defaultValue="+schema.defaultValue()
-                + (schema.type().equals(Schema.Type.STRUCT) ? schema.fields() : "");
+                + (schema.type().equals(Schema.Type.STRUCT) ? " fields="+schema.fields() : "");
     }
 }

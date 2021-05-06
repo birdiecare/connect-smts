@@ -195,7 +195,7 @@ public class SchemaTransformer {
                     .collect(Collectors.toList());
 
             if (valueTypes.size() != 1) {
-                throw new IllegalArgumentException("We can only union array schemas of the same value type together. Found: " + String.join(",", types));
+                throw new IllegalArgumentException("We can only union array schemas of the same value type together. Found: " + String.join(",", valueTypes));
             }
 
             return SchemaBuilder.array(

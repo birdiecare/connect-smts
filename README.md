@@ -11,3 +11,4 @@ This repository contains Kafka Connect SMTs used by Birdie.
 ```
 mvn test
 ```
+``

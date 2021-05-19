@@ -1,5 +1,7 @@
 package com.birdie.kafka.connect.smt;
 
+import com.birdie.kafka.connect.utils.LoggingContext;
+import org.apache.kafka.connect.data.Field;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
@@ -26,11 +28,13 @@ public class DebeziumJsonDeserializerTest {
     }
 
     private SourceRecord doTransform(Struct value, Map<String, ?> props) {
-        final SourceRecord record = new SourceRecord(
+        return doTransform(sourceRecordFromValue(value), props);
+    }
+
+    private SourceRecord sourceRecordFromValue(Struct value) {
+        return new SourceRecord(
                 null, null, "test", 0,
                 SchemaBuilder.bytes().optional().build(), "key".getBytes(), simpleSchema, value);
-
-        return doTransform(record, props);
     }
 
     private SourceRecord doTransform(Struct value) {
@@ -399,5 +403,87 @@ public class DebeziumJsonDeserializerTest {
         final SourceRecord transformedRecord = doTransform(record, new HashMap<>());
 
         assertEquals(record, transformedRecord);
+    }
+
+    @Test
+    public void unionSchemasAcrossMultipleMessages() {
+        Struct firstMessageContents = new Struct(simpleSchema);
+        firstMessageContents.put("id", "1234-5678");
+        firstMessageContents.put("json", "{\"foo\": \"da value\"}");
+
+        Struct secondMessageContents = new Struct(simpleSchema);
+        secondMessageContents.put("id", "1234-5678");
+        secondMessageContents.put("json", "{\"bar\": \"oh a value\"}");
+
+        Struct thirdMessageContents = new Struct(simpleSchema);
+        thirdMessageContents.put("id", "1234-5678");
+        thirdMessageContents.put("json", "{\"foo\": \"way\", \"bar\": \"plop\"}");
+
+        DebeziumJsonDeserializer transformer = new DebeziumJsonDeserializer();
+        transformer.configure(new HashMap<>() {{
+            put("optional-struct-fields", "true");
+            put("union-previous-messages-schema", "true");
+        }});
+
+        SourceRecord firstTransformed = transformer.apply(sourceRecordFromValue(firstMessageContents));
+        SourceRecord secondTransformed = transformer.apply(sourceRecordFromValue(secondMessageContents));
+        SourceRecord thirdTransformed = transformer.apply(sourceRecordFromValue(thirdMessageContents));
+
+        assertNotNull(firstTransformed.valueSchema().field("json").schema().field("foo"));
+        assertNull(firstTransformed.valueSchema().field("json").schema().field("bar"));
+
+        assertNotNull(secondTransformed.valueSchema().field("json").schema().field("foo"));
+        assertNotNull(secondTransformed.valueSchema().field("json").schema().field("bar"));
+
+        assertEqualsSchemas(secondTransformed.valueSchema(), thirdTransformed.valueSchema());
+    }
+
+    @Test
+    public void unionSchemasAcrossMultipleIncompatibleMessages() {
+        Struct firstMessageContents = new Struct(simpleSchema);
+        firstMessageContents.put("id", "1234-5678");
+        firstMessageContents.put("json", "{\"foo\": \"da value\", \"bar\": \"somethingElse\"}");
+
+        Struct secondMessageContents = new Struct(simpleSchema);
+        secondMessageContents.put("id", "1234-5678");
+        secondMessageContents.put("json", "{\"foo\": [\"oh a value\"]}");
+
+        Struct thirdMessageContents = new Struct(simpleSchema);
+        thirdMessageContents.put("id", "1234-5678");
+        thirdMessageContents.put("json", "{\"foo\": \"way\"}");
+
+        DebeziumJsonDeserializer transformer = new DebeziumJsonDeserializer();
+        transformer.configure(new HashMap<>() {{
+            put("optional-struct-fields", "true");
+            put("union-previous-messages-schema", "true");
+        }});
+
+        SourceRecord firstTransformed = transformer.apply(sourceRecordFromValue(firstMessageContents));
+        SourceRecord secondTransformed = transformer.apply(sourceRecordFromValue(secondMessageContents));
+        SourceRecord thirdTransformed = transformer.apply(sourceRecordFromValue(thirdMessageContents));
+
+        // Second message is its own, an array for foo
+        assertNotNull(secondTransformed.valueSchema().field("json").schema().field("foo"));
+        assertNull(secondTransformed.valueSchema().field("json").schema().field("bar"));
+
+        // First and 2nd have the same schema, with foo and bar
+        assertEqualsSchemas(firstTransformed.valueSchema(), thirdTransformed.valueSchema());
+    }
+
+    void assertEqualsSchemas(Schema left, Schema right) {
+        assertEquals(left.name(), right.name());
+        assertEquals(left.isOptional(), right.isOptional());
+        assertEquals(left.type(), right.type());
+        assertEquals(left.defaultValue(), right.defaultValue());
+
+        if (left.type().equals(Schema.Type.STRUCT)) {
+            for (Field leftField : left.fields()) {
+                Field rightField = right.field(leftField.name());
+
+                assertNotNull(rightField);
+                assertEquals(leftField.name(), rightField.name());
+                assertEqualsSchemas(leftField.schema(), rightField.schema());
+            }
+        }
     }
 }

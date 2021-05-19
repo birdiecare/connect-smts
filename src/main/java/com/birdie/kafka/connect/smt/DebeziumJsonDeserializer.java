@@ -8,23 +8,32 @@ import org.apache.kafka.connect.data.*;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.apache.kafka.connect.transforms.Transformation;
 import org.apache.kafka.connect.transforms.util.SimpleConfig;
-import org.json.simple.parser.ParseException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
+    private static final Logger LOGGER = LoggerFactory.getLogger(DebeziumJsonDeserializer.class);
+
     private interface ConfigName {
         String OPTIONAL_STRUCT_FIELDS = "optional-struct-fields";
         String CONVERT_NUMBERS_TO_DOUBLE = "convert-numbers-to-double";
         String SANITIZE_FIELDS_NAME = "sanitize.field.names";
+        String UNION_PREVIOUS_MESSAGES_SCHEMA = "union-previous-messages-schema";
     }
 
     public static final ConfigDef CONFIG_DEF = new ConfigDef()
             .define(ConfigName.OPTIONAL_STRUCT_FIELDS, ConfigDef.Type.BOOLEAN, false, ConfigDef.Importance.MEDIUM, "When true, all struct fields are optional.")
             .define(ConfigName.CONVERT_NUMBERS_TO_DOUBLE, ConfigDef.Type.BOOLEAN, false, ConfigDef.Importance.MEDIUM, "When true, integers in structs are converted to doubles.")
-            .define(ConfigName.SANITIZE_FIELDS_NAME, ConfigDef.Type.BOOLEAN, false, ConfigDef.Importance.MEDIUM, "When true, automatically sanitises the fields name so they are compatible with Avro.");
+            .define(ConfigName.SANITIZE_FIELDS_NAME, ConfigDef.Type.BOOLEAN, false, ConfigDef.Importance.MEDIUM, "When true, automatically sanitises the fields name so they are compatible with Avro.")
+            .define(ConfigName.UNION_PREVIOUS_MESSAGES_SCHEMA, ConfigDef.Type.BOOLEAN, false, ConfigDef.Importance.MEDIUM, "When true, merges the message's schema with the previous messages' schemas.");
 
     private SchemaTransformer schemaTransformer;
+    private boolean unionPreviousMessagesSchema;
+    private List<Schema> knownMessageSchemas = new CopyOnWriteArrayList<>();
 
     @Override
     public SourceRecord apply(SourceRecord record) {
@@ -60,7 +69,7 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
                     }
 
                     try {
-                        return schemaTransformer.transform(field, jsonString);
+                        return transformDebeziumJsonField(field, jsonString);
                     } catch (IllegalArgumentException e) {
                         throw new IllegalArgumentException("Cannot transform schema for type "+field.name()+". ("+LoggingContext.createContext(record)+")", e);
                     }
@@ -78,6 +87,38 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
         );
     }
 
+    private SchemaAndValue transformDebeziumJsonField(Field field, String jsonString) {
+        SchemaAndValue transformed = schemaTransformer.transform(field, jsonString);
+
+        if (!unionPreviousMessagesSchema) {
+            return transformed;
+        }
+
+        // Go through the various known schemas that we can unify. There is a list of them
+        // because it might be that some schemas are simply incompatible with each other.
+        for (Schema knownMessageSchema : knownMessageSchemas) {
+            try {
+                Schema unionedSchema = this.schemaTransformer.unionSchemas(
+                        knownMessageSchema,
+                        transformed.schema()
+                );
+
+                return new SchemaAndValue(
+                        unionedSchema,
+                        this.schemaTransformer.repackageStructure(unionedSchema, (Struct) transformed.value())
+                );
+            } catch (Throwable e) {
+                // Could not union the schema with one of the known message schemas, that's fine...
+            }
+        }
+
+        // We couldn't unified with any known schema so far so we add this one to our stack.
+        knownMessageSchemas.add(transformed.schema());
+        LOGGER.info("Registering the newly created schema on the in-memory known schemas for future unions.");
+
+        return transformed;
+    }
+
     @Override
     public ConfigDef config() {
         return CONFIG_DEF;
@@ -92,6 +133,7 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
     public void configure(Map<String, ?> props) {
         final SimpleConfig config = new SimpleConfig(CONFIG_DEF, props);
 
+        unionPreviousMessagesSchema = config.getBoolean(ConfigName.UNION_PREVIOUS_MESSAGES_SCHEMA);
         schemaTransformer = new SchemaTransformer(
                 config.getBoolean(ConfigName.OPTIONAL_STRUCT_FIELDS),
                 config.getBoolean(ConfigName.CONVERT_NUMBERS_TO_DOUBLE),

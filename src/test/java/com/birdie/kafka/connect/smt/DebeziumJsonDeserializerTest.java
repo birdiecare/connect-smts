@@ -419,6 +419,10 @@ public class DebeziumJsonDeserializerTest {
         thirdMessageContents.put("id", "1234-5678");
         thirdMessageContents.put("json", "{\"foo\": \"way\", \"bar\": \"plop\"}");
 
+        Struct fourthMessageContents = new Struct(simpleSchema);
+        fourthMessageContents.put("id", "1234-5678");
+        fourthMessageContents.put("json", "{\"foo\": \"way\", \"baz\": {\"one\": 1}}");
+
         DebeziumJsonDeserializer transformer = new DebeziumJsonDeserializer();
         transformer.configure(new HashMap<>() {{
             put("optional-struct-fields", "true");
@@ -428,6 +432,7 @@ public class DebeziumJsonDeserializerTest {
         SourceRecord firstTransformed = transformer.apply(sourceRecordFromValue(firstMessageContents));
         SourceRecord secondTransformed = transformer.apply(sourceRecordFromValue(secondMessageContents));
         SourceRecord thirdTransformed = transformer.apply(sourceRecordFromValue(thirdMessageContents));
+        SourceRecord fourthTransformed = transformer.apply(sourceRecordFromValue(fourthMessageContents));
 
         assertNotNull(firstTransformed.valueSchema().field("json").schema().field("foo"));
         assertNull(firstTransformed.valueSchema().field("json").schema().field("bar"));
@@ -436,6 +441,10 @@ public class DebeziumJsonDeserializerTest {
         assertNotNull(secondTransformed.valueSchema().field("json").schema().field("bar"));
 
         assertEqualsSchemas(secondTransformed.valueSchema(), thirdTransformed.valueSchema());
+
+        assertNotNull(fourthTransformed.valueSchema().field("json").schema().field("foo"));
+        assertNotNull(fourthTransformed.valueSchema().field("json").schema().field("bar"));
+        assertNotNull(fourthTransformed.valueSchema().field("json").schema().field("baz"));
     }
 
     @Test

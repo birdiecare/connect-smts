@@ -122,6 +122,10 @@ public class SchemaTransformer {
     }
 
     public Object repackage(Schema schema, Object value) {
+        if (value == null) {
+            return value;
+        }
+
         if (schema.type().equals(Schema.Type.ARRAY)) {
             return repackageList(schema.valueSchema(), value);
         } else if (schema.type().equals(Schema.Type.STRUCT)) {
@@ -161,7 +165,7 @@ public class SchemaTransformer {
 
     private List<Object> repackageList(Schema itemSchema, Object value) {
         if (!(value instanceof List)) {
-            throw new IllegalArgumentException("Expected value of schema type ARRAY to be a List but got "+value.getClass().getName());
+            throw new IllegalArgumentException("Expected value of schema type ARRAY to be a List but got "+(value != null ? value.getClass().getName() : "NULL"));
         }
 
         if (!itemSchema.type().equals(Schema.Type.STRUCT)) {

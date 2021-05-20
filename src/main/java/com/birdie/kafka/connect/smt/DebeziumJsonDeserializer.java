@@ -24,17 +24,21 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
         String CONVERT_NUMBERS_TO_DOUBLE = "convert-numbers-to-double";
         String SANITIZE_FIELDS_NAME = "sanitize.field.names";
         String UNION_PREVIOUS_MESSAGES_SCHEMA = "union-previous-messages-schema";
+        String UNION_PREVIOUS_MESSAGES_SCHEMA_LOG_UNION_ERRORS = "union-previous-messages-schema.log-union-errors";
     }
 
     public static final ConfigDef CONFIG_DEF = new ConfigDef()
-            .define(ConfigName.OPTIONAL_STRUCT_FIELDS, ConfigDef.Type.BOOLEAN, false, ConfigDef.Importance.MEDIUM, "When true, all struct fields are optional.")
-            .define(ConfigName.CONVERT_NUMBERS_TO_DOUBLE, ConfigDef.Type.BOOLEAN, false, ConfigDef.Importance.MEDIUM, "When true, integers in structs are converted to doubles.")
-            .define(ConfigName.SANITIZE_FIELDS_NAME, ConfigDef.Type.BOOLEAN, false, ConfigDef.Importance.MEDIUM, "When true, automatically sanitises the fields name so they are compatible with Avro.")
-            .define(ConfigName.UNION_PREVIOUS_MESSAGES_SCHEMA, ConfigDef.Type.BOOLEAN, false, ConfigDef.Importance.MEDIUM, "When true, merges the message's schema with the previous messages' schemas.");
+        .define(ConfigName.OPTIONAL_STRUCT_FIELDS, ConfigDef.Type.BOOLEAN, false, ConfigDef.Importance.MEDIUM, "When true, all struct fields are optional.")
+        .define(ConfigName.CONVERT_NUMBERS_TO_DOUBLE, ConfigDef.Type.BOOLEAN, false, ConfigDef.Importance.MEDIUM, "When true, integers in structs are converted to doubles.")
+        .define(ConfigName.SANITIZE_FIELDS_NAME, ConfigDef.Type.BOOLEAN, false, ConfigDef.Importance.MEDIUM, "When true, automatically sanitises the fields name so they are compatible with Avro.")
+        .define(ConfigName.UNION_PREVIOUS_MESSAGES_SCHEMA, ConfigDef.Type.BOOLEAN, false, ConfigDef.Importance.MEDIUM, "When true, merges the message's schema with the previous messages' schemas.")
+        .define(ConfigName.UNION_PREVIOUS_MESSAGES_SCHEMA_LOG_UNION_ERRORS, ConfigDef.Type.BOOLEAN, false, ConfigDef.Importance.MEDIUM, "When true, if two schemas can't be merged with one another, it will log an error instead of just considering it normal.")
+    ;
 
     private SchemaTransformer schemaTransformer;
-    private boolean unionPreviousMessagesSchema;
 
+    private boolean unionPreviousMessagesSchema;
+    private boolean unionPreviousMessagesSchemaLogUnionErrors;
     private Map<String, List<Schema>> knownMessageSchemasPerField = new ConcurrentHashMap<>();
 
     @Override
@@ -71,7 +75,7 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
                     }
 
                     try {
-                        return transformDebeziumJsonField(field, jsonString);
+                        return transformDebeziumJsonField(record, field, jsonString);
                     } catch (IllegalArgumentException e) {
                         throw new IllegalArgumentException("Cannot transform schema for type "+field.name()+". ("+LoggingContext.createContext(record)+")", e);
                     }
@@ -89,7 +93,7 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
         );
     }
 
-    private SchemaAndValue transformDebeziumJsonField(Field field, String jsonString) {
+    private SchemaAndValue transformDebeziumJsonField(SourceRecord record, Field field, String jsonString) {
         SchemaAndValue transformed = schemaTransformer.transform(field, jsonString);
 
         if (!unionPreviousMessagesSchema) {
@@ -114,6 +118,9 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
                 );
             } catch (IllegalArgumentException e) {
                 // Could not union the schema with one of the known message schemas, that's fine...
+                if (unionPreviousMessagesSchemaLogUnionErrors) {
+                    LOGGER.warn("Could not union schemas with in-memory schema #"+i+" ("+LoggingContext.createContext(record)+", known-schema="+LoggingContext.describeSchema(knownSchemas.get(i))+", given-schema="+LoggingContext.describeSchema(transformed.schema())+")", e);
+                }
 
                 continue;
             }
@@ -129,7 +136,7 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
 
         // We couldn't unified with any known schema so far so we add this one to our stack.
         knownSchemas.add(transformed.schema());
-        LOGGER.info("Registering the newly created schema on the in-memory known schemas for future unions.");
+        LOGGER.info("Registering the newly created schema on the in-memory known schemas for future unions ("+LoggingContext.createContext(record)+")");
 
         return transformed;
     }
@@ -149,6 +156,7 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
         final SimpleConfig config = new SimpleConfig(CONFIG_DEF, props);
 
         unionPreviousMessagesSchema = config.getBoolean(ConfigName.UNION_PREVIOUS_MESSAGES_SCHEMA);
+        unionPreviousMessagesSchemaLogUnionErrors = config.getBoolean(ConfigName.UNION_PREVIOUS_MESSAGES_SCHEMA_LOG_UNION_ERRORS);
         schemaTransformer = new SchemaTransformer(
                 config.getBoolean(ConfigName.OPTIONAL_STRUCT_FIELDS),
                 config.getBoolean(ConfigName.CONVERT_NUMBERS_TO_DOUBLE),

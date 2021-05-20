@@ -113,7 +113,7 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
 
             Schema unionedSchema;
             try {
-                unionedSchema = this.schemaTransformer.unionSchemas(knownSchema, transformed.schema());
+                unionedSchema = this.schemaTransformer.unionSchemas(knownSchema, transformed.schema()).build();
             } catch (IllegalArgumentException e) {
                 // Could not union the schema with one of the known message schemas, that's fine...
                 if (unionPreviousMessagesSchemaLogUnionErrors) {
@@ -138,7 +138,7 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
 
         // We couldn't unified with any known schema so far so we add this one to our stack.
         knownSchemas.add(transformed.schema());
-        LOGGER.info("Registering the newly created schema on the in-memory known schemas for future unions ("+LoggingContext.createContext(record)+")");
+        LOGGER.info("Registering schema on the in-memory known schemas for future unions ("+LoggingContext.createContext(record)+")");
 
         return transformed;
     }

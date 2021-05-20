@@ -7,6 +7,10 @@ import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import uk.org.lidalia.slf4jtest.TestLogger;
+import uk.org.lidalia.slf4jtest.TestLoggerFactory;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -445,6 +449,46 @@ public class DebeziumJsonDeserializerTest {
         assertNotNull(fourthTransformed.valueSchema().field("json").schema().field("foo"));
         assertNotNull(fourthTransformed.valueSchema().field("json").schema().field("bar"));
         assertNotNull(fourthTransformed.valueSchema().field("json").schema().field("baz"));
+    }
+
+    @Test
+    public void itLogsSignificantStepsOfTheProcess() {
+        TestLogger logger = TestLoggerFactory.getTestLogger(DebeziumJsonDeserializer.class);
+        DebeziumJsonDeserializer transformer = new DebeziumJsonDeserializer();
+        transformer.configure(new HashMap<>() {{
+            put("optional-struct-fields", "true");
+            put("union-previous-messages-schema", "true");
+        }});
+
+        logger.clear();
+        assertEquals(0, logger.getLoggingEvents().size());
+
+        // Create a new schema
+        Struct firstMessageContents = new Struct(simpleSchema);
+        firstMessageContents.put("id", "1234-5678");
+        firstMessageContents.put("json", "{\"foo\": \"da value\"}");
+        transformer.apply(sourceRecordFromValue(firstMessageContents));
+
+        assertTrue(logger.getLoggingEvents().get(0).getMessage().startsWith("Registering schema"));
+        logger.clear();
+
+        // Updates a schema
+        Struct secondMessageContents = new Struct(simpleSchema);
+        secondMessageContents.put("id", "1234-5678");
+        secondMessageContents.put("json", "{\"bar\": \"oh a value\"}");
+        transformer.apply(sourceRecordFromValue(secondMessageContents));
+
+        assertTrue(logger.getLoggingEvents().get(0).getMessage().startsWith("Updating schema"));
+        logger.clear();
+
+        // Re-uses a schema
+        Struct thirdMessageContents = new Struct(simpleSchema);
+        thirdMessageContents.put("id", "1234-5678");
+        thirdMessageContents.put("json", "{\"foo\": \"way\", \"bar\": \"plop\"}");
+        transformer.apply(sourceRecordFromValue(thirdMessageContents));
+
+        assertEquals(0, logger.getLoggingEvents().size());
+        logger.clear();
     }
 
     @Test

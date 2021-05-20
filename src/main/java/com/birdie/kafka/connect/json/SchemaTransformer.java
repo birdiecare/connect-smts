@@ -212,7 +212,7 @@ public class SchemaTransformer {
             schemaBuilder = SchemaBuilder.array(
                 unionSchemas(
                     List.of(schemas).stream().map(Schema::valueSchema).toArray(Schema[]::new)
-                )
+                ).build()
             );
         } else if (type.equals(Schema.Type.STRUCT)) {
             schemaBuilder = SchemaBuilder.struct();
@@ -224,18 +224,21 @@ public class SchemaTransformer {
                             .flatMap(Collection::stream)
                             .collect(Collectors.groupingBy(Field::name));
 
-            for (Map.Entry<String, List<Field>> entry : fieldsByName.entrySet()) {
-                List<Field> fields = entry.getValue();
+            String[] fieldNames = fieldsByName.keySet().toArray(String[]::new);
+            Arrays.sort(fieldNames);
+
+            for (String fieldName: fieldNames) {
+                List<Field> fieldValues = fieldsByName.get(fieldName);
 
                 SchemaBuilder unionedSchema = unionSchemas(
-                    fields.stream().map(Field::schema).toArray(Schema[]::new)
+                    fieldValues.stream().map(Field::schema).toArray(Schema[]::new)
                 );
 
-                if (fields.size() != schemas.length || optionalStructFields) {
+                if (fieldValues.size() != schemas.length || optionalStructFields) {
                     unionedSchema.optional();
                 }
 
-                schemaBuilder.field(entry.getKey(), unionedSchema.build());
+                schemaBuilder.field(fieldName, unionedSchema.build());
             }
         } else {
             schemaBuilder = new SchemaBuilder(schemas[0].type());

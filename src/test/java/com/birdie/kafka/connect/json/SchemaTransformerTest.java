@@ -49,4 +49,30 @@ public class SchemaTransformerTest {
         assertNotNull(merged.field("nested").schema().field("bar"));
         assertNotNull(merged.field("nested").schema().field("foo"));
     }
+
+    @Test
+    public void keepsADeterministicOrderForKeys() {
+        Schema left = SchemaBuilder.struct()
+                .name("Value")
+                .field("foo", SchemaBuilder.STRING_SCHEMA)
+                .field("baz", SchemaBuilder.struct()
+                        .field("sam", SchemaBuilder.STRING_SCHEMA)
+                        .field("uel", SchemaBuilder.STRING_SCHEMA)
+                )
+                .build();
+
+        Schema right = SchemaBuilder.struct()
+                .name("Value")
+                .field("id", SchemaBuilder.STRING_SCHEMA)
+                .field("baz", SchemaBuilder.struct()
+                        .field("uel", SchemaBuilder.STRING_SCHEMA)
+                        .field("sam", SchemaBuilder.STRING_SCHEMA)
+                )
+                .field("foo", SchemaBuilder.STRING_SCHEMA)
+                .build();
+
+        SchemaTransformer transformer = new SchemaTransformer(true, true, true);
+
+        assertEquals(transformer.unionSchemas(left, right, left).build(), transformer.unionSchemas(right, left, right).build());
+    }
 }

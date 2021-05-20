@@ -125,7 +125,7 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
 
             // If it worked and it's more generic, let's re-use that more generic schema going forward!
             if (!unionedSchema.equals(knownSchema)) {
-                LOGGER.info("Updating schema #"+i+" with a unified schema ("+LoggingContext.createContext(record)+"): "+LoggingContext.describeSchema(unionedSchema));
+                LOGGER.info("Updating schema "+field.name()+"#"+i+" with a unified schema ("+LoggingContext.createContext(record)+"): "+LoggingContext.describeSchema(unionedSchema));
 
                 knownSchemas.set(i, unionedSchema);
             }

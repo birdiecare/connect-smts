@@ -21,5 +21,6 @@ transforms.json.optional-struct-fields=true
 |Name|Description|Type|Default|
 |---|---|---|---|
 |`optional-struct-fields`| When `true`, all fields in structs are optional. This enables you to have slightly different types within each array item for example, so long that every field with the same name as the same type. | Boolean | `false` |
+|`union-previous-messages-schema`| When `true`, the schema will be merged with previous messages' schemas. If you have lots of different schema structures in your table, this will help reduce the number of schema versions being created. | Boolean | `false` |
 |`convert-numbers-to-double`| When `true`, all number fields in structs are converted to double. This avoids compatibility errors when some fields can contain both integers and floats. | Boolean | `false` |
 |`sanitize.field.names`| When `true`, sanitizes the fields name so they are compatible with Avro; [like with Debezium.](https://debezium.io/documentation/reference/1.4/configuration/avro.html#avro-naming) | Boolean | `false` |

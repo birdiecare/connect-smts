@@ -121,7 +121,7 @@ public class SchemaTransformer {
         return new SchemaAndValue(schemaBuilder.build(), obj);
     }
 
-    private Struct repackageStructure(Schema transformedSchema, Struct transformedStruct) {
+    public Struct repackageStructure(Schema transformedSchema, Struct transformedStruct) {
         Struct repackagedStructure = new Struct(transformedSchema);
 
         for (Field field: transformedStruct.schema().fields()) {
@@ -170,7 +170,7 @@ public class SchemaTransformer {
         return repackagedStructured;
     }
 
-    SchemaBuilder unionSchemas(Schema ...schemas) {
+    public SchemaBuilder unionSchemas(Schema ...schemas) {
         if (schemas.length == 0) {
             throw new IllegalArgumentException("We can't union-ize an empty list of schemas.");
         }
@@ -185,6 +185,7 @@ public class SchemaTransformer {
             throw new IllegalArgumentException("We can only union schemas of the same type together. Found: " + String.join(",", types));
         }
 
+        SchemaBuilder schemaBuilder;
         Schema.Type type = Schema.Type.valueOf(types.get(0));
 
         if (type.equals(Schema.Type.ARRAY)) {
@@ -198,14 +199,13 @@ public class SchemaTransformer {
                 throw new IllegalArgumentException("We can only union array schemas of the same value type together. Found: " + String.join(",", valueTypes));
             }
 
-            return SchemaBuilder.array(
+            schemaBuilder = SchemaBuilder.array(
                 unionSchemas(
                     List.of(schemas).stream().map(Schema::valueSchema).toArray(Schema[]::new)
                 )
-            ).name(schemas[0].name());
+            );
         } else if (type.equals(Schema.Type.STRUCT)) {
-            SchemaBuilder schemaBuilder = SchemaBuilder.struct()
-                    .name(schemas[0].name());
+            schemaBuilder = SchemaBuilder.struct();
 
             Map<String, List<Field>> fieldsByName =
                     List.of(schemas)
@@ -227,11 +227,24 @@ public class SchemaTransformer {
 
                 schemaBuilder.field(entry.getKey(), unionedSchema.build());
             }
-
-            return schemaBuilder;
+        } else {
+            schemaBuilder = new SchemaBuilder(schemas[0].type());
         }
 
-        return new SchemaBuilder(schemas[0].type())
-                .name(schemas[0].name());
+        schemaBuilder = schemaBuilder.name(schemas[0].name());
+
+        boolean shouldBeOptional = false;
+        for (Schema schema: schemas) {
+            if (schema.isOptional()) {
+                shouldBeOptional = true;
+                break;
+            }
+        }
+
+        if (shouldBeOptional) {
+            schemaBuilder = schemaBuilder.optional();
+        }
+
+        return schemaBuilder;
     }
 }

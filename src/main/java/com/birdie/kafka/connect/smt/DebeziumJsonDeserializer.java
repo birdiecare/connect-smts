@@ -130,7 +130,7 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
 
             return new SchemaAndValue(
                 unionedSchema,
-                this.schemaTransformer.repackageStructure(unionedSchema, (Struct) transformed.value())
+                this.schemaTransformer.repackage(unionedSchema, transformed.value())
             );
         }
 

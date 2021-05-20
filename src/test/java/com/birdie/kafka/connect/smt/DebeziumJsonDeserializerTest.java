@@ -461,6 +461,14 @@ public class DebeziumJsonDeserializerTest {
         thirdMessageContents.put("id", "1234-5678");
         thirdMessageContents.put("json", "{\"foo\": \"way\"}");
 
+        Struct fourthMessageContents = new Struct(simpleSchema);
+        fourthMessageContents.put("id", "1234-5678");
+        fourthMessageContents.put("json", "[{\"un\": 1}]");
+
+        Struct fifthMessageContents = new Struct(simpleSchema);
+        fifthMessageContents.put("id", "1234-5678");
+        fifthMessageContents.put("json", "[{\"deux\": 1}]");
+
         DebeziumJsonDeserializer transformer = new DebeziumJsonDeserializer();
         transformer.configure(new HashMap<>() {{
             put("optional-struct-fields", "true");
@@ -470,6 +478,8 @@ public class DebeziumJsonDeserializerTest {
         SourceRecord firstTransformed = transformer.apply(sourceRecordFromValue(firstMessageContents));
         SourceRecord secondTransformed = transformer.apply(sourceRecordFromValue(secondMessageContents));
         SourceRecord thirdTransformed = transformer.apply(sourceRecordFromValue(thirdMessageContents));
+        SourceRecord fourthTransformed = transformer.apply(sourceRecordFromValue(fourthMessageContents));
+        SourceRecord fifthTransformed = transformer.apply(sourceRecordFromValue(fifthMessageContents));
 
         // Second message is its own, an array for foo
         assertNotNull(secondTransformed.valueSchema().field("json").schema().field("foo"));
@@ -477,6 +487,10 @@ public class DebeziumJsonDeserializerTest {
 
         // First and 2nd have the same schema, with foo and bar
         assertEqualsSchemas(firstTransformed.valueSchema(), thirdTransformed.valueSchema());
+        assertEquals(Schema.Type.ARRAY, fourthTransformed.valueSchema().field("json").schema().type());
+
+        assertNotNull(fifthTransformed.valueSchema().field("json").schema().valueSchema().field("un"));
+        assertNotNull(fifthTransformed.valueSchema().field("json").schema().valueSchema().field("deux"));
     }
 
     void assertEqualsSchemas(Schema left, Schema right) {
@@ -493,6 +507,10 @@ public class DebeziumJsonDeserializerTest {
                 assertEquals(leftField.name(), rightField.name());
                 assertEqualsSchemas(leftField.schema(), rightField.schema());
             }
+        }
+
+        if (left.type().equals(Schema.Type.ARRAY)) {
+            assertEqualsSchemas(left.valueSchema(), right.valueSchema());
         }
     }
 }

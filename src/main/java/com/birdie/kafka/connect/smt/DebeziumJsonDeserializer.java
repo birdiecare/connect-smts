@@ -13,6 +13,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
@@ -33,7 +34,8 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
 
     private SchemaTransformer schemaTransformer;
     private boolean unionPreviousMessagesSchema;
-    private List<Schema> knownMessageSchemas = new CopyOnWriteArrayList<>();
+
+    private Map<String, List<Schema>> knownMessageSchemasPerField = new ConcurrentHashMap<>();
 
     @Override
     public SourceRecord apply(SourceRecord record) {
@@ -94,26 +96,39 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
             return transformed;
         }
 
+        if (!this.knownMessageSchemasPerField.containsKey(field.name())) {
+            this.knownMessageSchemasPerField.put(field.name(), new CopyOnWriteArrayList<>());
+        }
+
+        List<Schema> knownSchemas = this.knownMessageSchemasPerField.get(field.name());
+
         // Go through the various known schemas that we can unify. There is a list of them
         // because it might be that some schemas are simply incompatible with each other.
-        for (Schema knownMessageSchema : knownMessageSchemas) {
+        for (int i = 0; i < knownSchemas.size(); i++) {
+            Schema unionedSchema;
+
             try {
-                Schema unionedSchema = this.schemaTransformer.unionSchemas(
-                        knownMessageSchema,
+                unionedSchema = this.schemaTransformer.unionSchemas(
+                        knownSchemas.get(i),
                         transformed.schema()
                 );
-
-                return new SchemaAndValue(
-                        unionedSchema,
-                        this.schemaTransformer.repackageStructure(unionedSchema, (Struct) transformed.value())
-                );
-            } catch (Throwable e) {
+            } catch (IllegalArgumentException e) {
                 // Could not union the schema with one of the known message schemas, that's fine...
+
+                continue;
             }
+
+            // If it worked, let's re-use that more generic schema going forward!
+            knownSchemas.set(i, unionedSchema);
+
+            return new SchemaAndValue(
+                unionedSchema,
+                this.schemaTransformer.repackageStructure(unionedSchema, (Struct) transformed.value())
+            );
         }
 
         // We couldn't unified with any known schema so far so we add this one to our stack.
-        knownMessageSchemas.add(transformed.schema());
+        knownSchemas.add(transformed.schema());
         LOGGER.info("Registering the newly created schema on the in-memory known schemas for future unions.");
 
         return transformed;

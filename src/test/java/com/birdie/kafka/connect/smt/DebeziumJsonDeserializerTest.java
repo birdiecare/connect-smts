@@ -493,6 +493,29 @@ public class DebeziumJsonDeserializerTest {
         assertNotNull(fifthTransformed.valueSchema().field("json").schema().valueSchema().field("deux"));
     }
 
+    @Test
+    public void handlesEmptyValuesForBasicFields() {
+        Struct firstMessageContents = new Struct(simpleSchema);
+        firstMessageContents.put("id", "1234-5678");
+        firstMessageContents.put("json", "[{\"bar\": \"da value\", \"foo\": [{\"meh\": \"yay\"}]}]");
+
+        Struct secondMessageContents = new Struct(simpleSchema);
+        secondMessageContents.put("id", "1234-5678");
+        secondMessageContents.put("json", "[{\"foo\":[null]}]");
+
+        DebeziumJsonDeserializer transformer = new DebeziumJsonDeserializer();
+        transformer.configure(new HashMap<>() {{
+            put("optional-struct-fields", "true");
+            put("union-previous-messages-schema", "true");
+        }});
+
+        transformer.apply(sourceRecordFromValue(firstMessageContents));
+        SourceRecord secondTransformed = transformer.apply(sourceRecordFromValue(secondMessageContents));
+
+        assertNotNull(secondTransformed.valueSchema().field("json").schema().valueSchema().field("foo"));
+        assertNotNull(secondTransformed.valueSchema().field("json").schema().valueSchema().field("bar"));
+    }
+
     void assertEqualsSchemas(Schema left, Schema right) {
         assertEquals(left.name(), right.name());
         assertEquals(left.isOptional(), right.isOptional());

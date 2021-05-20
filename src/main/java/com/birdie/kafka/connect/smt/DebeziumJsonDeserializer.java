@@ -109,13 +109,11 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
         // Go through the various known schemas that we can unify. There is a list of them
         // because it might be that some schemas are simply incompatible with each other.
         for (int i = 0; i < knownSchemas.size(); i++) {
-            Schema unionedSchema;
+            Schema knownSchema = knownSchemas.get(i);
 
+            Schema unionedSchema;
             try {
-                unionedSchema = this.schemaTransformer.unionSchemas(
-                        knownSchemas.get(i),
-                        transformed.schema()
-                );
+                unionedSchema = this.schemaTransformer.unionSchemas(knownSchema, transformed.schema());
             } catch (IllegalArgumentException e) {
                 // Could not union the schema with one of the known message schemas, that's fine...
                 if (unionPreviousMessagesSchemaLogUnionErrors) {
@@ -125,12 +123,16 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
                 continue;
             }
 
-            // If it worked, let's re-use that more generic schema going forward!
-            knownSchemas.set(i, unionedSchema);
+            // If it worked and it's more generic, let's re-use that more generic schema going forward!
+            if (!unionedSchema.equals(knownSchema)) {
+                LOGGER.info("Updating schema #"+i+" with a unified schema ("+LoggingContext.createContext(record)+")");
+
+                knownSchemas.set(i, unionedSchema);
+            }
 
             return new SchemaAndValue(
                 unionedSchema,
-                this.schemaTransformer.repackageStructure(unionedSchema, (Struct) transformed.value())
+                this.schemaTransformer.repackage(unionedSchema, transformed.value())
             );
         }
 

@@ -121,7 +121,17 @@ public class SchemaTransformer {
         return new SchemaAndValue(schemaBuilder.build(), obj);
     }
 
-    public Struct repackageStructure(Schema transformedSchema, Struct transformedStruct) {
+    public Object repackage(Schema schema, Object value) {
+        if (schema.type().equals(Schema.Type.ARRAY)) {
+            return repackageList(schema.valueSchema(), value);
+        } else if (schema.type().equals(Schema.Type.STRUCT)) {
+            return repackageStructure(schema, (Struct) value);
+        }
+
+        throw new IllegalArgumentException("Unable to repackage into a schema of type '"+schema.type()+"'.");
+    }
+
+    private Struct repackageStructure(Schema transformedSchema, Struct transformedStruct) {
         Struct repackagedStructure = new Struct(transformedSchema);
 
         for (Field field: transformedStruct.schema().fields()) {

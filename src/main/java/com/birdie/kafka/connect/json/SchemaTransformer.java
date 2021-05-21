@@ -67,7 +67,14 @@ public class SchemaTransformer {
                     optionalStructFields
             );
         } else if (obj instanceof JSONArray) {
-            List<SchemaAndValue> transformed = (List<SchemaAndValue>) ((JSONArray) obj).stream().map(
+            JSONArray list = (JSONArray) obj;
+
+            // We can't guess the type of an array's content if it's empty so we ignore it.
+            if (list.size() == 0) {
+                return null;
+            }
+
+            List<SchemaAndValue> transformed = (List<SchemaAndValue>) list.stream().map(
                     child -> transformJsonValue(child, key+"_array_item")
             ).collect(Collectors.toList());
 
@@ -100,7 +107,6 @@ public class SchemaTransformer {
                 schemaBuilder.name(key+"_array").build(),
                 transformedChildren
             );
-
         } else if (obj == null) {
             return null;
         }

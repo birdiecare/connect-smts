@@ -136,6 +136,22 @@ public class DebeziumJsonDeserializerTest {
     }
 
     @Test
+    public void transformsAnArrayOfNumbersAndAnEmptyNumberTogether() {
+        Struct value = new Struct(simpleSchema);
+        value.put("id", "1234-5678");
+        value.put("json", "{\n" +
+                "  \"field1\": [{\"ids\": [1, 2, 3]}, {\"ids\": []}]\n" +
+                "}");
+
+        final SourceRecord transformedRecord = doTransform(value);
+
+        Schema jsonSchema = transformedRecord.valueSchema().field("json").schema();
+        assertEquals(Schema.Type.STRUCT, jsonSchema.type());
+        assertEquals(Schema.Type.ARRAY, jsonSchema.field("field1").schema().type());
+        assertNotNull(jsonSchema.field("field1").schema().valueSchema().field("ids"));
+    }
+
+    @Test
     public void transformsAnArrayOfDifferentStructsWithRequiredCommonFields() {
         Struct value = new Struct(simpleSchema);
         value.put("id", "1234-5678");
@@ -215,7 +231,7 @@ public class DebeziumJsonDeserializerTest {
     }
 
     @Test
-    public void transformsEmptyArray() {
+    public void ignoresEmptyArrays() {
         Struct value = new Struct(simpleSchema);
         value.put("id", "1234-5678");
         value.put("json", "[]");
@@ -223,9 +239,8 @@ public class DebeziumJsonDeserializerTest {
         final SourceRecord transformedRecord = doTransform(value);
 
         Schema transformedValueSchema = transformedRecord.valueSchema();
-        Schema jsonSchema = transformedValueSchema.field("json").schema();
-        assertEquals(Schema.Type.ARRAY, jsonSchema.type());
-        assertEquals(Schema.Type.STRUCT, jsonSchema.valueSchema().type());
+
+        assertNull(transformedValueSchema.field("json"));
     }
 
     @Test

@@ -96,7 +96,7 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
     private SchemaAndValue transformDebeziumJsonField(SourceRecord record, Field field, String jsonString) {
         SchemaAndValue transformed = schemaTransformer.transform(field, jsonString);
 
-        if (!unionPreviousMessagesSchema) {
+        if (!unionPreviousMessagesSchema || transformed == null) {
             return transformed;
         }
 

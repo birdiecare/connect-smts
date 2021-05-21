@@ -467,6 +467,21 @@ public class DebeziumJsonDeserializerTest {
     }
 
     @Test
+    public void handlesEmptyArraysWhenUninioingSchemas() {
+        Struct firstMessageContents = new Struct(simpleSchema);
+        firstMessageContents.put("id", "1234-5678");
+        firstMessageContents.put("json", "[]");
+
+        DebeziumJsonDeserializer transformer = new DebeziumJsonDeserializer();
+        transformer.configure(new HashMap<>() {{
+            put("optional-struct-fields", "true");
+            put("union-previous-messages-schema", "true");
+        }});
+
+        transformer.apply(sourceRecordFromValue(firstMessageContents));
+    }
+
+        @Test
     public void itLogsSignificantStepsOfTheProcess() {
         TestLogger logger = TestLoggerFactory.getTestLogger(DebeziumJsonDeserializer.class);
         DebeziumJsonDeserializer transformer = new DebeziumJsonDeserializer();

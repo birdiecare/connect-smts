@@ -3,6 +3,11 @@ package com.birdie.kafka.connect.json;
 import com.birdie.kafka.connect.utils.AvroUtils;
 import com.birdie.kafka.connect.utils.LoggingContext;
 import com.birdie.kafka.connect.utils.StructWalker;
+import com.jsoniter.JsonIterator;
+import com.jsoniter.ValueType;
+import com.jsoniter.any.Any;
+import com.jsoniter.spi.JsonException;
+import com.jsoniter.spi.JsoniterSpi;
 import org.apache.kafka.connect.data.*;
 import org.apache.kafka.connect.errors.DataException;
 import org.json.simple.JSONArray;
@@ -13,6 +18,8 @@ import org.json.simple.parser.ParseException;
 import java.util.*;
 
 public class SchemaTransformer {
+    private JSONParser parser = new JSONParser();
+
     private boolean optionalStructFields;
     private boolean convertNumbersToDouble;
     private boolean sanitizeFieldsName;
@@ -37,19 +44,18 @@ public class SchemaTransformer {
     public SchemaAndValue transform(Field field, String jsonValue) {
         try {
             return transformJsonValue(
-                new JSONParser().parse(jsonValue),
+                JsonIterator.deserialize(jsonValue),
                 field.name()
             );
-        } catch (ParseException e) {
+        } catch (JsonException e) {
             throw new IllegalArgumentException("Cannot parse JSON value \""+jsonValue+"\"", e);
         } 
     }
 
-    SchemaAndValue transformJsonValue(Object obj, String key) {
-        if (obj instanceof JSONObject) {
-            JSONObject object = (JSONObject) obj;
-            List<Map.Entry<String, Object>> listOfEntries = new ArrayList<>();
-            for (Map.Entry<String, Object> entry : (Set<Map.Entry<String, Object>>) object.entrySet()) {
+    SchemaAndValue transformJsonValue(Any obj, String key) {
+        if (obj.valueType().equals(ValueType.OBJECT)) {
+            List<Map.Entry<String, Any>> listOfEntries = new ArrayList<>();
+            for (Map.Entry<String, Any> entry : (Set<Map.Entry<String, Any>>) obj.asMap().entrySet()) {
                 listOfEntries.add(
                     new AbstractMap.SimpleEntry<>(
                         this.sanitizeFieldsName ? AvroUtils.sanitizeColumnName(entry.getKey()) : entry.getKey(),
@@ -65,8 +71,8 @@ public class SchemaTransformer {
                     entry -> transformJsonValue(entry.getValue(), key+"_"+entry.getKey()),
                     optionalStructFields
             );
-        } else if (obj instanceof JSONArray) {
-            JSONArray list = (JSONArray) obj;
+        } else if (obj.valueType().equals(ValueType.ARRAY)) {
+            List<Any> list = obj.asList();
 
             // We can't guess the type of an array's content if it's empty so we ignore it.
             if (list.size() == 0) {
@@ -76,7 +82,7 @@ public class SchemaTransformer {
             List<Schema> transformedSchemas = new ArrayList<>();
             List<Object> transformedValues = new ArrayList<>();
 
-            for (Object child : list) {
+            for (Any child : list) {
                 SchemaAndValue t = transformJsonValue(child, key + "_array_item");
 
                 if (t == null) {
@@ -113,14 +119,17 @@ public class SchemaTransformer {
                 schemaBuilder.name(key+"_array").build(),
                     transformedValues
             );
-        } else if (obj == null) {
+        } else if (obj.valueType().equals(ValueType.NULL)) {
             return null;
         }
-        
-        Schema.Type objSchemaType = Values.inferSchema(obj).type();
+
+        Object actualValue = obj.object();
+        System.out.println("type="+obj.getClass().getName());
+        System.out.println("actualValue="+actualValue.getClass().getName());
+        Schema.Type objSchemaType = Values.inferSchema(actualValue).type();
 
         if (convertNumbersToDouble && isNumberType(objSchemaType)) {
-            obj = Double.valueOf(obj.toString());
+            actualValue = Double.valueOf(actualValue.toString());
             objSchemaType = Schema.Type.FLOAT64;
         }
 
@@ -130,7 +139,7 @@ public class SchemaTransformer {
             schemaBuilder.optional();
         }
 
-        return new SchemaAndValue(schemaBuilder.build(), obj);
+        return new SchemaAndValue(schemaBuilder.build(), actualValue);
     }
 
     public Object repackage(Schema schema, Object value) {

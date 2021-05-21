@@ -3,16 +3,23 @@ package com.birdie.kafka.connect.json;
 import com.birdie.kafka.connect.utils.AvroUtils;
 import com.birdie.kafka.connect.utils.LoggingContext;
 import com.birdie.kafka.connect.utils.StructWalker;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.JsonNodeType;
 import org.apache.kafka.connect.data.*;
 import org.apache.kafka.connect.errors.DataException;
-import org.json.simple.JSONArray;
-import org.json.simple.JSONObject;
-import org.json.simple.parser.JSONParser;
-import org.json.simple.parser.ParseException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.util.*;
 
 public class SchemaTransformer {
+    private static final Logger LOGGER = LoggerFactory.getLogger(SchemaTransformer.class);
+
+    private ObjectMapper mapper = new ObjectMapper();
+
     private boolean optionalStructFields;
     private boolean convertNumbersToDouble;
     private boolean sanitizeFieldsName;
@@ -37,23 +44,24 @@ public class SchemaTransformer {
     public SchemaAndValue transform(Field field, String jsonValue) {
         try {
             return transformJsonValue(
-                new JSONParser().parse(jsonValue),
+                this.mapper.readTree(jsonValue),
                 field.name()
             );
-        } catch (ParseException e) {
+        } catch (JsonProcessingException e) {
             throw new IllegalArgumentException("Cannot parse JSON value \""+jsonValue+"\"", e);
         } 
     }
 
-    SchemaAndValue transformJsonValue(Object obj, String key) {
-        if (obj instanceof JSONObject) {
-            JSONObject object = (JSONObject) obj;
-            List<Map.Entry<String, Object>> listOfEntries = new ArrayList<>();
-            for (Map.Entry<String, Object> entry : (Set<Map.Entry<String, Object>>) object.entrySet()) {
+    SchemaAndValue transformJsonValue(JsonNode obj, String key) {
+        if (obj.isObject()) {
+            List<Map.Entry<String, JsonNode>> listOfEntries = new ArrayList<>();
+            for (Iterator<String> it = obj.fieldNames(); it.hasNext(); ) {
+                String fieldName = it.next();
+
                 listOfEntries.add(
                     new AbstractMap.SimpleEntry<>(
-                        this.sanitizeFieldsName ? AvroUtils.sanitizeColumnName(entry.getKey()) : entry.getKey(),
-                        entry.getValue()
+                        this.sanitizeFieldsName ? AvroUtils.sanitizeColumnName(fieldName) : fieldName,
+                        obj.path(fieldName)
                     )
                 );
             }
@@ -65,18 +73,17 @@ public class SchemaTransformer {
                     entry -> transformJsonValue(entry.getValue(), key+"_"+entry.getKey()),
                     optionalStructFields
             );
-        } else if (obj instanceof JSONArray) {
-            JSONArray list = (JSONArray) obj;
-
+        } else if (obj.isArray()) {
             // We can't guess the type of an array's content if it's empty so we ignore it.
-            if (list.size() == 0) {
+            if (obj.size() == 0) {
                 return null;
             }
 
             List<Schema> transformedSchemas = new ArrayList<>();
             List<Object> transformedValues = new ArrayList<>();
 
-            for (Object child : list) {
+            for (Iterator<JsonNode> it = obj.elements(); it.hasNext(); ) {
+                JsonNode child = it.next();
                 SchemaAndValue t = transformJsonValue(child, key + "_array_item");
 
                 if (t == null) {
@@ -113,14 +120,15 @@ public class SchemaTransformer {
                 schemaBuilder.name(key+"_array").build(),
                     transformedValues
             );
-        } else if (obj == null) {
+        } else if (obj.isNull()) {
             return null;
         }
-        
-        Schema.Type objSchemaType = Values.inferSchema(obj).type();
+
+        Object value = valueFromLiteralJacksonTreeNode(obj);
+        Schema.Type objSchemaType = Values.inferSchema(value).type();
 
         if (convertNumbersToDouble && isNumberType(objSchemaType)) {
-            obj = Double.valueOf(obj.toString());
+            value = Double.valueOf(value.toString());
             objSchemaType = Schema.Type.FLOAT64;
         }
 
@@ -130,7 +138,7 @@ public class SchemaTransformer {
             schemaBuilder.optional();
         }
 
-        return new SchemaAndValue(schemaBuilder.build(), obj);
+        return new SchemaAndValue(schemaBuilder.build(), value);
     }
 
     public Object repackage(Schema schema, Object value) {
@@ -274,5 +282,25 @@ public class SchemaTransformer {
         }
 
         return schemaBuilder;
+    }
+
+    private Object valueFromLiteralJacksonTreeNode(JsonNode node) {
+        if (node.isBinary()) {
+            try {
+                return node.binaryValue();
+            } catch (IOException e) {
+                LOGGER.error("Could not get the binary value from a JSON node, returning NULL instead.", e);
+
+                return null;
+            }
+        } else if (node.isBoolean()) {
+            return node.booleanValue();
+        } else if (node.isNumber()) {
+            return node.numberValue();
+        } else if (node.getNodeType() == JsonNodeType.STRING) {
+            return node.toString();
+        }
+
+        throw new IllegalArgumentException("Found JSON node of type '"+node.getNodeType()+"' but not supported.");
     }
 }

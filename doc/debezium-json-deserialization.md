@@ -25,3 +25,10 @@ transforms.json.optional-struct-fields=true
 |`union-previous-messages-schema.log-union-errors`| When `true`, if two schemas can't be merged with one another, it will log an error instead of just considering it normal. | Boolean | `false` |
 |`convert-numbers-to-double`| When `true`, all number fields in structs are converted to double. This avoids compatibility errors when some fields can contain both integers and floats. | Boolean | `false` |
 |`sanitize.field.names`| When `true`, sanitizes the fields name so they are compatible with Avro; [like with Debezium.](https://debezium.io/documentation/reference/1.4/configuration/avro.html#avro-naming) | Boolean | `false` |
+
+## Benchmark
+
+The latest benchmarks (MacBook Pro; 13-inch, 2019) shows the following:
+ 
+- Without `union-previous-messages-schema`, ~4700 ops/sec.
+- With `union-previous-messages-schema`, ~3500 ops/sec.

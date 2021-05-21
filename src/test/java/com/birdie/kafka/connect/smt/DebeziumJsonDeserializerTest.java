@@ -124,7 +124,7 @@ public class DebeziumJsonDeserializerTest {
         Struct value = new Struct(simpleSchema);
         value.put("id", "1234-5678");
         value.put("json", "{\n" +
-                "  \"field1\": [{\"id\": 1}]\n" +
+                "  \"field1\": [{\"id\": 1}],\n" +
                 "  \"field2\": [{\"id\": 2}, {\"id\": 3}]\n" +
                 "}");
 
@@ -185,7 +185,7 @@ public class DebeziumJsonDeserializerTest {
 
         assertNotNull(jsonSchema.valueSchema().field("execution_offset"));
         assertTrue(jsonSchema.valueSchema().field("execution_offset").schema().isOptional());
-        assertEquals(Schema.Type.INT64, jsonSchema.valueSchema().field("execution_offset").schema().type());
+        assertEquals(Schema.Type.INT32, jsonSchema.valueSchema().field("execution_offset").schema().type());
     }
 
     @Test
@@ -296,7 +296,7 @@ public class DebeziumJsonDeserializerTest {
         Struct value = new Struct(simpleSchema);
         value.put("id", "1234-5678");
         value.put("json", "[\n" +
-                "  {\"id\": 1, \"temperature\": 37.5},\n" +
+                "  {\"id\": 1, \"temperature\": 37.5}\n" +
                 "]");
 
         final SourceRecord transformedRecord = doTransform(value);
@@ -304,7 +304,7 @@ public class DebeziumJsonDeserializerTest {
         Schema transformedValueSchema = transformedRecord.valueSchema();
 
         Schema jsonSchema = transformedValueSchema.field("json").schema();
-        assertEquals(Schema.Type.INT64, jsonSchema.valueSchema().field("id").schema().type());
+        assertEquals(Schema.Type.INT32, jsonSchema.valueSchema().field("id").schema().type());
         assertEquals(Schema.Type.FLOAT64, jsonSchema.valueSchema().field("temperature").schema().type());
     }
 
@@ -313,7 +313,7 @@ public class DebeziumJsonDeserializerTest {
         Struct value = new Struct(simpleSchema);
         value.put("id", "1234-5678");
         value.put("json", "[\n" +
-        "  {\"id\": 1, \"temperature\": 37.5},\n" +
+        "  {\"id\": 1, \"temperature\": 37.5}\n" +
         "]");
 
         final SourceRecord transformedRecord = doTransform(value, new HashMap<>() {{

@@ -11,7 +11,6 @@ import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 public class SchemaTransformer {
     private boolean optionalStructFields;
@@ -74,18 +73,25 @@ public class SchemaTransformer {
                 return null;
             }
 
-            List<SchemaAndValue> transformed = (List<SchemaAndValue>) list.stream().map(
-                    child -> transformJsonValue(child, key+"_array_item")
-            ).collect(Collectors.toList());
+            List<Schema> transformedSchemas = new ArrayList<>();
+            List<Object> transformedValues = new ArrayList<>();
 
-            Schema[] transformedSchemas = transformed.stream().filter(Objects::nonNull).map(SchemaAndValue::schema).toArray(Schema[]::new);
-            Schema transformedSchema = transformedSchemas.length > 0 ? unionSchemas(transformedSchemas).build() : null;
+            for (Object child : list) {
+                SchemaAndValue t = transformJsonValue(child, key + "_array_item");
 
-            List<Object> transformedChildren = transformed.stream().map(s -> s != null ? s.value() : null).collect(Collectors.toList());
+                if (t == null) {
+                    transformedValues.add(null);
+                } else {
+                    transformedValues.add(t.value());
+                    transformedSchemas.add(t.schema());
+                }
+            }
+
+            Schema transformedSchema = transformedSchemas.size() > 0 ? unionSchemas(transformedSchemas.toArray(Schema[]::new)).build() : null;
 
             // We need to re-create the `Struct` objects.
             if (transformedSchema != null && transformedSchema.type().equals(Schema.Type.STRUCT)) {
-                transformedChildren = repackageList(transformedSchema, transformedChildren);
+                transformedValues = repackageList(transformedSchema, transformedValues);
             }
 
             // By default, if array is empty, it's an empty struct
@@ -105,7 +111,7 @@ public class SchemaTransformer {
 
             return new SchemaAndValue(
                 schemaBuilder.name(key+"_array").build(),
-                transformedChildren
+                    transformedValues
             );
         } else if (obj == null) {
             return null;
@@ -191,56 +197,59 @@ public class SchemaTransformer {
             throw new IllegalArgumentException("We can't union-ize an empty list of schemas.");
         }
 
-        List<String> types = List.of(schemas)
-                .stream()
-                .map(schema -> schema.type().toString())
-                .distinct()
-                .collect(Collectors.toList());
+        Schema.Type type = schemas[0].type();
 
-        if (types.size() != 1) {
-            throw new IllegalArgumentException("We can only union schemas of the same type together. Found: " + String.join(",", types));
+        // Array-specific values we care about
+        Schema.Type valueType = null;
+        Schema[] valueSchemas = new Schema[schemas.length];
+
+        // Struct-specific values we care about
+        Map<String, List<Schema>> fieldsByName = new HashMap<>();
+
+        for (int i = 0; i < schemas.length; i++) {
+            Schema schema = schemas[i];
+
+            if (!schema.type().equals(type)) {
+                throw new IllegalArgumentException("We can only union schemas of the same type together. Found: " + type + " and " + schema.type());
+            }
+
+            if (schema.type().equals(Schema.Type.ARRAY)) {
+                if (valueType == null) {
+                    valueType = schema.valueSchema().type();
+                } else if (!valueType.equals(schema.valueSchema().type())) {
+                    throw new IllegalArgumentException("We can only union array schemas of the same value type together. Found: " + valueType + " and "+ schema.valueSchema().type());
+                }
+
+                valueSchemas[i] = schema.valueSchema();
+            } else if (schema.type().equals(Schema.Type.STRUCT)) {
+                for (Field field : schema.fields()) {
+                    if (!fieldsByName.containsKey(field.name())) {
+                        fieldsByName.put(field.name(), new ArrayList<>());
+                    }
+
+                    fieldsByName.get(field.name()).add(
+                        field.schema()
+                    );
+                }
+            }
         }
 
         SchemaBuilder schemaBuilder;
-        Schema.Type type = Schema.Type.valueOf(types.get(0));
-
         if (type.equals(Schema.Type.ARRAY)) {
-            List<String> valueTypes = List.of(schemas)
-                    .stream()
-                    .map(schema -> schema.valueSchema().type().toString())
-                    .distinct()
-                    .collect(Collectors.toList());
-
-            if (valueTypes.size() != 1) {
-                throw new IllegalArgumentException("We can only union array schemas of the same value type together. Found: " + String.join(",", valueTypes));
-            }
-
             schemaBuilder = SchemaBuilder.array(
-                unionSchemas(
-                    List.of(schemas).stream().map(Schema::valueSchema).toArray(Schema[]::new)
-                ).build()
+                unionSchemas(valueSchemas).build()
             );
         } else if (type.equals(Schema.Type.STRUCT)) {
             schemaBuilder = SchemaBuilder.struct();
-
-            Map<String, List<Field>> fieldsByName =
-                    List.of(schemas)
-                            .stream()
-                            .map(Schema::fields)
-                            .flatMap(Collection::stream)
-                            .collect(Collectors.groupingBy(Field::name));
 
             String[] fieldNames = fieldsByName.keySet().toArray(String[]::new);
             Arrays.sort(fieldNames);
 
             for (String fieldName: fieldNames) {
-                List<Field> fieldValues = fieldsByName.get(fieldName);
+                List<Schema> fieldSchemas = fieldsByName.get(fieldName);
 
-                SchemaBuilder unionedSchema = unionSchemas(
-                    fieldValues.stream().map(Field::schema).toArray(Schema[]::new)
-                );
-
-                if (fieldValues.size() != schemas.length || optionalStructFields) {
+                SchemaBuilder unionedSchema = unionSchemas(fieldSchemas.toArray(Schema[]::new));
+                if (fieldSchemas.size() != schemas.length || optionalStructFields) {
                     unionedSchema.optional();
                 }
 

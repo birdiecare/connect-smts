@@ -7,6 +7,7 @@ import org.apache.kafka.connect.data.Struct;
 
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.function.Function;
 
 public class StructWalker {
@@ -27,7 +28,7 @@ public class StructWalker {
             boolean optionalStructFields
     ) {
         SchemaBuilder builder = SchemaBuilder.struct().name(name);
-        HashMap<String, Object> valuesPerField = new HashMap<>();
+        Map<String, Object> valuesPerField = new HashMap<>();
 
         for (T item: items) {
             String identifier = identifierFn.apply(item);

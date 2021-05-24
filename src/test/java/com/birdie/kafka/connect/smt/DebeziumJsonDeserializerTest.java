@@ -1,6 +1,8 @@
 package com.birdie.kafka.connect.smt;
 
 import com.birdie.kafka.connect.utils.LoggingContext;
+import com.birdie.kafka.connect.utils.SchemaSerDer;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import org.apache.kafka.connect.data.Field;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
@@ -482,8 +484,9 @@ public class DebeziumJsonDeserializerTest {
         transformer.apply(sourceRecordFromValue(firstMessageContents));
     }
 
-        @Test
-    public void itLogsSignificantStepsOfTheProcess() {
+    @Test
+    public void itLogsSignificantStepsOfTheProcessAndSerializesTheCurrentSchema() throws JsonProcessingException {
+        SchemaSerDer schemaSerDer = new SchemaSerDer();
         TestLogger logger = TestLoggerFactory.getTestLogger(DebeziumJsonDeserializer.class);
         DebeziumJsonDeserializer transformer = new DebeziumJsonDeserializer();
         transformer.configure(new HashMap<>() {{
@@ -498,18 +501,30 @@ public class DebeziumJsonDeserializerTest {
         Struct firstMessageContents = new Struct(simpleSchema);
         firstMessageContents.put("id", "1234-5678");
         firstMessageContents.put("json", "{\"foo\": \"da value\"}");
-        transformer.apply(sourceRecordFromValue(firstMessageContents));
+        SourceRecord transformed = transformer.apply(sourceRecordFromValue(firstMessageContents));
 
-        assertTrue(logger.getLoggingEvents().get(0).getMessage().startsWith("Registering schema"));
+        String logMessage = logger.getLoggingEvents().get(0).getMessage();
+        assertTrue(logMessage.startsWith("Registering schema json#0"));
+
+        String serializedSchema = logMessage.substring(logMessage.indexOf(':') + 2);
+        Schema deserializedFromLog = schemaSerDer.deserialize(serializedSchema);
+        assertEqualsSchemas(deserializedFromLog, transformed.valueSchema().field("json").schema());
+
         logger.clear();
 
         // Updates a schema
         Struct secondMessageContents = new Struct(simpleSchema);
         secondMessageContents.put("id", "1234-5678");
         secondMessageContents.put("json", "{\"bar\": \"oh a value\"}");
-        transformer.apply(sourceRecordFromValue(secondMessageContents));
+        transformed = transformer.apply(sourceRecordFromValue(secondMessageContents));
 
-        assertTrue(logger.getLoggingEvents().get(0).getMessage().startsWith("Updating schema"));
+        logMessage = logger.getLoggingEvents().get(0).getMessage();
+
+        assertTrue(logMessage.startsWith("Updating schema json#0"));
+        serializedSchema = logMessage.substring(logMessage.indexOf(':') + 2);
+        deserializedFromLog = schemaSerDer.deserialize(serializedSchema);
+        assertEqualsSchemas(deserializedFromLog, transformed.valueSchema().field("json").schema());
+
         logger.clear();
 
         // Re-uses a schema

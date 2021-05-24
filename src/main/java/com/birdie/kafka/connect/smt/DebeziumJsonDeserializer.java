@@ -2,6 +2,7 @@ package com.birdie.kafka.connect.smt;
 
 import com.birdie.kafka.connect.json.SchemaTransformer;
 import com.birdie.kafka.connect.utils.LoggingContext;
+import com.birdie.kafka.connect.utils.SchemaSerDer;
 import com.birdie.kafka.connect.utils.StructWalker;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.connect.data.*;
@@ -18,6 +19,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
     private static final Logger LOGGER = LoggerFactory.getLogger(DebeziumJsonDeserializer.class);
+    private SchemaSerDer schemaSerDer = new SchemaSerDer();
 
     private interface ConfigName {
         String OPTIONAL_STRUCT_FIELDS = "optional-struct-fields";
@@ -125,7 +127,7 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
 
             // If it worked and it's more generic, let's re-use that more generic schema going forward!
             if (!unionedSchema.equals(knownSchema)) {
-                LOGGER.info("Updating schema "+field.name()+"#"+i+" with a unified schema ("+LoggingContext.createContext(record)+"): "+LoggingContext.describeSchema(unionedSchema));
+                LOGGER.info("Updating schema "+field.name()+"#"+i+" with a unified schema ("+LoggingContext.createContext(record)+"): "+this.schemaSerDer.serialize(unionedSchema));
 
                 knownSchemas.set(i, unionedSchema);
             }
@@ -137,8 +139,8 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
         }
 
         // We couldn't unified with any known schema so far so we add this one to our stack.
+        LOGGER.info("Registering schema "+field.name()+"#"+knownSchemas.size()+" for future unions ("+LoggingContext.createContext(record)+"): "+this.schemaSerDer.serialize(transformed.schema()));
         knownSchemas.add(transformed.schema());
-        LOGGER.info("Registering schema on the in-memory known schemas for future unions ("+LoggingContext.createContext(record)+")");
 
         return transformed;
     }

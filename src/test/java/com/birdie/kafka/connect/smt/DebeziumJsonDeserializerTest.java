@@ -17,6 +17,7 @@ import java.util.Map;
 
 import static org.junit.Assert.*;
 
+
 public class DebeziumJsonDeserializerTest {
     private static final Schema simpleSchema = SchemaBuilder.struct()
         .name("Value")
@@ -24,24 +25,24 @@ public class DebeziumJsonDeserializerTest {
         .field("json", SchemaBuilder.string().name("io.debezium.data.Json").optional().build())
         .build();
 
-    private SourceRecord doTransform(SourceRecord record, Map<String, ?> props) {
+    public static SourceRecord doTransform(SourceRecord record, Map<String, ?> props) {
         DebeziumJsonDeserializer transformer = new DebeziumJsonDeserializer();
         transformer.configure(props);
 
         return transformer.apply(record);
     }
 
-    private SourceRecord doTransform(Struct value, Map<String, ?> props) {
+    public static SourceRecord doTransform(Struct value, Map<String, ?> props) {
         return doTransform(sourceRecordFromValue(value), props);
     }
 
-    private SourceRecord sourceRecordFromValue(Struct value) {
+    public static SourceRecord sourceRecordFromValue(Struct value) {
         return new SourceRecord(
                 null, null, "test", 0,
                 SchemaBuilder.bytes().optional().build(), "key".getBytes(), simpleSchema, value);
     }
 
-    private SourceRecord doTransform(Struct value) {
+    public static SourceRecord doTransform(Struct value) {
         return doTransform(value, new HashMap<>());
     }
 
@@ -123,7 +124,7 @@ public class DebeziumJsonDeserializerTest {
         Struct value = new Struct(simpleSchema);
         value.put("id", "1234-5678");
         value.put("json", "{\n" +
-                "  \"field1\": [{\"id\": 1}]\n" +
+                "  \"field1\": [{\"id\": 1}],\n" +
                 "  \"field2\": [{\"id\": 2}, {\"id\": 3}]\n" +
                 "}");
 
@@ -184,7 +185,7 @@ public class DebeziumJsonDeserializerTest {
 
         assertNotNull(jsonSchema.valueSchema().field("execution_offset"));
         assertTrue(jsonSchema.valueSchema().field("execution_offset").schema().isOptional());
-        assertEquals(Schema.Type.INT64, jsonSchema.valueSchema().field("execution_offset").schema().type());
+        assertEquals(Schema.Type.INT32, jsonSchema.valueSchema().field("execution_offset").schema().type());
     }
 
     @Test
@@ -295,7 +296,7 @@ public class DebeziumJsonDeserializerTest {
         Struct value = new Struct(simpleSchema);
         value.put("id", "1234-5678");
         value.put("json", "[\n" +
-                "  {\"id\": 1, \"temperature\": 37.5},\n" +
+                "  {\"id\": 1, \"temperature\": 37.5}\n" +
                 "]");
 
         final SourceRecord transformedRecord = doTransform(value);
@@ -303,7 +304,7 @@ public class DebeziumJsonDeserializerTest {
         Schema transformedValueSchema = transformedRecord.valueSchema();
 
         Schema jsonSchema = transformedValueSchema.field("json").schema();
-        assertEquals(Schema.Type.INT64, jsonSchema.valueSchema().field("id").schema().type());
+        assertEquals(Schema.Type.INT32, jsonSchema.valueSchema().field("id").schema().type());
         assertEquals(Schema.Type.FLOAT64, jsonSchema.valueSchema().field("temperature").schema().type());
     }
 
@@ -312,7 +313,7 @@ public class DebeziumJsonDeserializerTest {
         Struct value = new Struct(simpleSchema);
         value.put("id", "1234-5678");
         value.put("json", "[\n" +
-        "  {\"id\": 1, \"temperature\": 37.5},\n" +
+        "  {\"id\": 1, \"temperature\": 37.5}\n" +
         "]");
 
         final SourceRecord transformedRecord = doTransform(value, new HashMap<>() {{
@@ -590,7 +591,7 @@ public class DebeziumJsonDeserializerTest {
         assertNotNull(secondTransformed.valueSchema().field("json").schema().valueSchema().field("bar"));
     }
 
-    void assertEqualsSchemas(Schema left, Schema right) {
+    public static void assertEqualsSchemas(Schema left, Schema right) {
         assertEquals(left.name(), right.name());
         assertEquals(left.isOptional(), right.isOptional());
         assertEquals(left.type(), right.type());

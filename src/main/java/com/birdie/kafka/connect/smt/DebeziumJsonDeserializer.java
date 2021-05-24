@@ -4,6 +4,7 @@ import com.birdie.kafka.connect.json.SchemaTransformer;
 import com.birdie.kafka.connect.utils.LoggingContext;
 import com.birdie.kafka.connect.utils.SchemaSerDer;
 import com.birdie.kafka.connect.utils.StructWalker;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.connect.data.*;
 import org.apache.kafka.connect.source.SourceRecord;
@@ -95,6 +96,14 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
         );
     }
 
+    private List<Schema> getOrCreateListOfKnownSchemasForField(String fieldName) {
+        if (!this.knownMessageSchemasPerField.containsKey(fieldName)) {
+            this.knownMessageSchemasPerField.put(fieldName, new CopyOnWriteArrayList<>());
+        }
+
+        return this.knownMessageSchemasPerField.get(fieldName);
+    }
+
     private SchemaAndValue transformDebeziumJsonField(SourceRecord record, Field field, String jsonString) {
         SchemaAndValue transformed = schemaTransformer.transform(field, jsonString);
 
@@ -102,11 +111,7 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
             return transformed;
         }
 
-        if (!this.knownMessageSchemasPerField.containsKey(field.name())) {
-            this.knownMessageSchemasPerField.put(field.name(), new CopyOnWriteArrayList<>());
-        }
-
-        List<Schema> knownSchemas = this.knownMessageSchemasPerField.get(field.name());
+        List<Schema> knownSchemas = this.getOrCreateListOfKnownSchemasForField(field.name());
 
         // Go through the various known schemas that we can unify. There is a list of them
         // because it might be that some schemas are simply incompatible with each other.
@@ -160,6 +165,27 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
         final SimpleConfig config = new SimpleConfig(CONFIG_DEF, props);
 
         unionPreviousMessagesSchema = config.getBoolean(ConfigName.UNION_PREVIOUS_MESSAGES_SCHEMA);
+        if (unionPreviousMessagesSchema) {
+            String fieldSchemaConfigurationPrefix = ConfigName.UNION_PREVIOUS_MESSAGES_SCHEMA+".field.";
+
+            for (String key: props.keySet()) {
+                if (key.startsWith(fieldSchemaConfigurationPrefix)) {
+                    String fieldName = key.substring(fieldSchemaConfigurationPrefix.length());
+                    List<Schema> knownSchemas = this.getOrCreateListOfKnownSchemasForField(fieldName);
+
+                    try {
+                        knownSchemas.addAll(
+                            this.schemaSerDer.deserializeMany(
+                                (String) props.get(key)
+                            )
+                        );
+                    } catch (JsonProcessingException e) {
+                        throw new IllegalArgumentException("Could not initialise the SMT's schema for field '"+fieldName+"'.", e);
+                    }
+                }
+            }
+        }
+
         unionPreviousMessagesSchemaLogUnionErrors = config.getBoolean(ConfigName.UNION_PREVIOUS_MESSAGES_SCHEMA_LOG_UNION_ERRORS);
         schemaTransformer = new SchemaTransformer(
                 config.getBoolean(ConfigName.OPTIONAL_STRUCT_FIELDS),

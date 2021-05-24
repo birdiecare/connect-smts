@@ -5,6 +5,9 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.connect.data.Schema;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class SchemaSerDer {
     private ObjectMapper objectMapper = new ObjectMapper().setSerializationInclusion(JsonInclude.Include.NON_NULL);
 
@@ -22,9 +25,16 @@ public class SchemaSerDer {
         }
     }
 
-    public Schema deserialize(String string) throws JsonProcessingException {
-        SchemaDto schema = this.objectMapper.readValue(string, SchemaDto.class);
+    public Schema deserializeOne(String string) throws JsonProcessingException {
+        return this.objectMapper.readValue(string, SchemaDto.class).toSchema();
+    }
 
-        return schema.toSchema();
+    public List<Schema> deserializeMany(String string) throws JsonProcessingException {
+        List<Schema> schemas = new ArrayList<>();
+        for (SchemaDto dto: this.objectMapper.readValue(string, SchemaDto[].class)) {
+            schemas.add(dto.toSchema());
+        }
+
+        return schemas;
     }
 }

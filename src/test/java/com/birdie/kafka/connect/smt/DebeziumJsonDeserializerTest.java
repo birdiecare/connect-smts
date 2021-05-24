@@ -1,6 +1,5 @@
 package com.birdie.kafka.connect.smt;
 
-import com.birdie.kafka.connect.utils.LoggingContext;
 import com.birdie.kafka.connect.utils.SchemaSerDer;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import org.apache.kafka.connect.data.Field;
@@ -9,8 +8,6 @@ import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import uk.org.lidalia.slf4jtest.TestLogger;
 import uk.org.lidalia.slf4jtest.TestLoggerFactory;
 
@@ -507,7 +504,7 @@ public class DebeziumJsonDeserializerTest {
         assertTrue(logMessage.startsWith("Registering schema json#0"));
 
         String serializedSchema = logMessage.substring(logMessage.indexOf(':') + 2);
-        Schema deserializedFromLog = schemaSerDer.deserialize(serializedSchema);
+        Schema deserializedFromLog = schemaSerDer.deserializeOne(serializedSchema);
         assertEqualsSchemas(deserializedFromLog, transformed.valueSchema().field("json").schema());
 
         logger.clear();
@@ -522,7 +519,7 @@ public class DebeziumJsonDeserializerTest {
 
         assertTrue(logMessage.startsWith("Updating schema json#0"));
         serializedSchema = logMessage.substring(logMessage.indexOf(':') + 2);
-        deserializedFromLog = schemaSerDer.deserialize(serializedSchema);
+        deserializedFromLog = schemaSerDer.deserializeOne(serializedSchema);
         assertEqualsSchemas(deserializedFromLog, transformed.valueSchema().field("json").schema());
 
         logger.clear();
@@ -604,6 +601,26 @@ public class DebeziumJsonDeserializerTest {
 
         assertNotNull(secondTransformed.valueSchema().field("json").schema().valueSchema().field("foo"));
         assertNotNull(secondTransformed.valueSchema().field("json").schema().valueSchema().field("bar"));
+    }
+
+    @Test
+    public void usesAnInitialSchemaForAField() {
+        Struct firstMessageContents = new Struct(simpleSchema);
+        firstMessageContents.put("id", "1234-5678");
+        firstMessageContents.put("json", "{\"something_else\": 1}");
+
+        DebeziumJsonDeserializer transformer = new DebeziumJsonDeserializer();
+        transformer.configure(new HashMap<>() {{
+            put("optional-struct-fields", "true");
+            put("union-previous-messages-schema", "true");
+            put("union-previous-messages-schema.field.json", "[{\"type\":\"STRUCT\",\"name\":\"json\",\"isOptional\":true,\"fields\":[{\"name\":\"bar\",\"index\":0,\"schema\":{\"type\":\"STRING\",\"isOptional\":true}},{\"name\":\"foo\",\"index\":1,\"schema\":{\"type\":\"STRING\",\"isOptional\":true}}]}]");
+        }});
+
+        SourceRecord transformed = transformer.apply(sourceRecordFromValue(firstMessageContents));
+
+        assertNotNull(transformed.valueSchema().field("json").schema().field("foo"));
+        assertNotNull(transformed.valueSchema().field("json").schema().field("bar"));
+        assertNotNull(transformed.valueSchema().field("json").schema().field("something_else"));
     }
 
     public static void assertEqualsSchemas(Schema left, Schema right) {

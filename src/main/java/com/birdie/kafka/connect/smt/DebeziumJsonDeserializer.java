@@ -96,12 +96,66 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
         );
     }
 
-    private List<Schema> getOrCreateListOfKnownSchemasForField(String fieldName) {
-        if (!this.knownMessageSchemasPerField.containsKey(fieldName)) {
-            this.knownMessageSchemasPerField.put(fieldName, new CopyOnWriteArrayList<>());
+    @Override
+    public ConfigDef config() {
+        return CONFIG_DEF;
+    }
+
+    @Override
+    public void close() {
+        // Nothing to do...
+    }
+
+    @Override
+    public void configure(Map<String, ?> props) {
+        final SimpleConfig config = new SimpleConfig(CONFIG_DEF, props);
+
+        unionPreviousMessagesSchema = config.getBoolean(ConfigName.UNION_PREVIOUS_MESSAGES_SCHEMA);
+        if (unionPreviousMessagesSchema) {
+            String fieldSchemaConfigurationPrefix = ConfigName.UNION_PREVIOUS_MESSAGES_SCHEMA+".topic.";
+            String fieldSeparator = ".field.";
+
+            for (String key: props.keySet()) {
+                if (key.startsWith(fieldSchemaConfigurationPrefix)) {
+                    String topicAndFieldName = key.substring(fieldSchemaConfigurationPrefix.length());
+                    int fieldSeparatorIndex = topicAndFieldName.lastIndexOf(fieldSeparator);
+                    if (fieldSeparatorIndex == -1) {
+                        throw new IllegalArgumentException("The topic field's configuration must have the format '{topic}.field.{field}' but found '"+topicAndFieldName+"'.");
+                    }
+
+                    String topic = topicAndFieldName.substring(0, fieldSeparatorIndex);
+                    String fieldName = topicAndFieldName.substring(fieldSeparatorIndex + fieldSeparator.length());
+
+                    List<Schema> knownSchemas = this.getOrCreateListOfKnownSchemasForField(topic, fieldName);
+
+                    try {
+                        knownSchemas.addAll(
+                            this.schemaSerDer.deserializeMany(
+                                (String) props.get(key)
+                            )
+                        );
+                    } catch (JsonProcessingException e) {
+                        throw new IllegalArgumentException("Could not initialise the SMT's schema for field '"+fieldName+"' on topic '"+topic+"'.", e);
+                    }
+                }
+            }
         }
 
-        return this.knownMessageSchemasPerField.get(fieldName);
+        unionPreviousMessagesSchemaLogUnionErrors = config.getBoolean(ConfigName.UNION_PREVIOUS_MESSAGES_SCHEMA_LOG_UNION_ERRORS);
+        schemaTransformer = new SchemaTransformer(
+                config.getBoolean(ConfigName.OPTIONAL_STRUCT_FIELDS),
+                config.getBoolean(ConfigName.CONVERT_NUMBERS_TO_DOUBLE),
+                config.getBoolean(ConfigName.SANITIZE_FIELDS_NAME)
+        );
+    }
+
+    private List<Schema> getOrCreateListOfKnownSchemasForField(String topicName, String fieldName) {
+        String key = topicName + "|" + fieldName;
+        if (!this.knownMessageSchemasPerField.containsKey(key)) {
+            this.knownMessageSchemasPerField.put(key, new CopyOnWriteArrayList<>());
+        }
+
+        return this.knownMessageSchemasPerField.get(key);
     }
 
     private SchemaAndValue transformDebeziumJsonField(SourceRecord record, Field field, String jsonString) {
@@ -111,7 +165,7 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
             return transformed;
         }
 
-        List<Schema> knownSchemas = this.getOrCreateListOfKnownSchemasForField(field.name());
+        List<Schema> knownSchemas = this.getOrCreateListOfKnownSchemasForField(record.topic(), field.name());
 
         // Go through the various known schemas that we can unify. There is a list of them
         // because it might be that some schemas are simply incompatible with each other.
@@ -132,65 +186,21 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
 
             // If it worked and it's more generic, let's re-use that more generic schema going forward!
             if (!unionedSchema.equals(knownSchema)) {
-                LOGGER.info("Updating schema "+field.name()+"#"+i+" with a unified schema ("+LoggingContext.createContext(record)+"): "+this.schemaSerDer.serialize(unionedSchema));
+                LOGGER.info("Updating schema "+field.name()+"#"+i+" on topic "+record.topic()+" with a unified schema ("+LoggingContext.createContext(record)+"): "+this.schemaSerDer.serialize(unionedSchema));
 
                 knownSchemas.set(i, unionedSchema);
             }
 
             return new SchemaAndValue(
-                unionedSchema,
-                this.schemaTransformer.repackage(unionedSchema, transformed.value())
+                    unionedSchema,
+                    this.schemaTransformer.repackage(unionedSchema, transformed.value())
             );
         }
 
         // We couldn't unified with any known schema so far so we add this one to our stack.
-        LOGGER.info("Registering schema "+field.name()+"#"+knownSchemas.size()+" for future unions ("+LoggingContext.createContext(record)+"): "+this.schemaSerDer.serialize(transformed.schema()));
+        LOGGER.info("Registering schema "+field.name()+"#"+knownSchemas.size()+" on topic "+record.topic()+" for future unions ("+LoggingContext.createContext(record)+"): "+this.schemaSerDer.serialize(transformed.schema()));
         knownSchemas.add(transformed.schema());
 
         return transformed;
-    }
-
-    @Override
-    public ConfigDef config() {
-        return CONFIG_DEF;
-    }
-
-    @Override
-    public void close() {
-        // Nothing to do...
-    }
-
-    @Override
-    public void configure(Map<String, ?> props) {
-        final SimpleConfig config = new SimpleConfig(CONFIG_DEF, props);
-
-        unionPreviousMessagesSchema = config.getBoolean(ConfigName.UNION_PREVIOUS_MESSAGES_SCHEMA);
-        if (unionPreviousMessagesSchema) {
-            String fieldSchemaConfigurationPrefix = ConfigName.UNION_PREVIOUS_MESSAGES_SCHEMA+".field.";
-
-            for (String key: props.keySet()) {
-                if (key.startsWith(fieldSchemaConfigurationPrefix)) {
-                    String fieldName = key.substring(fieldSchemaConfigurationPrefix.length());
-                    List<Schema> knownSchemas = this.getOrCreateListOfKnownSchemasForField(fieldName);
-
-                    try {
-                        knownSchemas.addAll(
-                            this.schemaSerDer.deserializeMany(
-                                (String) props.get(key)
-                            )
-                        );
-                    } catch (JsonProcessingException e) {
-                        throw new IllegalArgumentException("Could not initialise the SMT's schema for field '"+fieldName+"'.", e);
-                    }
-                }
-            }
-        }
-
-        unionPreviousMessagesSchemaLogUnionErrors = config.getBoolean(ConfigName.UNION_PREVIOUS_MESSAGES_SCHEMA_LOG_UNION_ERRORS);
-        schemaTransformer = new SchemaTransformer(
-                config.getBoolean(ConfigName.OPTIONAL_STRUCT_FIELDS),
-                config.getBoolean(ConfigName.CONVERT_NUMBERS_TO_DOUBLE),
-                config.getBoolean(ConfigName.SANITIZE_FIELDS_NAME)
-        );
     }
 }

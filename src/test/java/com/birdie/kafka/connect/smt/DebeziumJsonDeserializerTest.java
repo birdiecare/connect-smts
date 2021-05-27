@@ -103,7 +103,6 @@ public class DebeziumJsonDeserializerTest {
         value.put("json", "{\"foo\": \"bar\", \"baz\": 10, \"plop\": [\"a\", \"b\"]}");
 
         final SourceRecord transformedRecord = doTransform(value);
-
         Schema transformedValueSchema = transformedRecord.valueSchema();
 
         assertNotNull(transformedValueSchema);
@@ -116,6 +115,13 @@ public class DebeziumJsonDeserializerTest {
         assertNotNull(jsonSchema.field("plop"));
 
         assertEquals(Schema.Type.ARRAY, jsonSchema.field("plop").schema().type());
+
+        Struct transformedValue = (Struct) transformedRecord.value();
+        assertEquals("1234-5678", transformedValue.getString("id"));
+        assertEquals("bar", transformedValue.getStruct("json").getString("foo"));
+        assertEquals(10, transformedValue.getStruct("json").get("baz"));
+        assertEquals("a", transformedValue.getStruct("json").getArray("plop").get(0));
+        assertEquals("b", transformedValue.getStruct("json").getArray("plop").get(1));
     }
 
     @Test
@@ -311,9 +317,7 @@ public class DebeziumJsonDeserializerTest {
     public void transformsIntegersIntoFloatsWithConvertOption() {
         Struct value = new Struct(simpleSchema);
         value.put("id", "1234-5678");
-        value.put("json", "[\n" +
-        "  {\"id\": 1, \"temperature\": 37.5}\n" +
-        "]");
+        value.put("json", "{\"temperature\": 37}");
 
         final SourceRecord transformedRecord = doTransform(value, new HashMap<>() {{
            put("convert-numbers-to-double", "true");
@@ -321,9 +325,10 @@ public class DebeziumJsonDeserializerTest {
 
         Schema transformedValueSchema = transformedRecord.valueSchema();
 
-        Schema arraySchema = transformedValueSchema.field("json").schema();
-        assertEquals(Schema.Type.FLOAT64, arraySchema.valueSchema().field("id").schema().type());
-        assertEquals(Schema.Type.FLOAT64, arraySchema.valueSchema().field("temperature").schema().type());
+        assertEquals(Schema.Type.FLOAT64, transformedValueSchema.field("json").schema().field("temperature").schema().type());
+
+        Struct transformedValue = (Struct) transformedRecord.value();
+        assertEquals(Double.valueOf(37.0), transformedValue.getStruct("json").getFloat64("temperature"));
     }
 
     @Test

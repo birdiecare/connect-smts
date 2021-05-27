@@ -298,7 +298,7 @@ public class SchemaTransformer {
         } else if (node.isNumber()) {
             return node.numberValue();
         } else if (node.getNodeType() == JsonNodeType.STRING) {
-            return node.toString();
+            return node.textValue();
         }
 
         throw new IllegalArgumentException("Found JSON node of type '"+node.getNodeType()+"' but not supported.");

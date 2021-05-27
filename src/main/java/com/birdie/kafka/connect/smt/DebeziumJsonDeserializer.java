@@ -132,7 +132,7 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
 
             // If it worked and it's more generic, let's re-use that more generic schema going forward!
             if (!unionedSchema.equals(knownSchema)) {
-                LOGGER.info("Updating schema "+field.name()+"#"+i+" with a unified schema ("+LoggingContext.createContext(record)+"): "+this.schemaSerDer.serialize(unionedSchema));
+                LOGGER.info("Updating schema "+record.topic()+"-"+field.name()+"#"+i+" with a unified schema ("+LoggingContext.createContext(record)+"): "+this.schemaSerDer.serialize(unionedSchema));
 
                 knownSchemas.set(i, unionedSchema);
             }
@@ -170,7 +170,8 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
 
             for (String key: props.keySet()) {
                 if (key.startsWith(fieldSchemaConfigurationPrefix)) {
-                    String fieldName = key.substring(fieldSchemaConfigurationPrefix.length());
+                    String tableAndfieldName = key.substring(fieldSchemaConfigurationPrefix.length());
+                    String fieldName = tableAndfieldName.split("\\.", 2)[1];
                     List<Schema> knownSchemas = this.getOrCreateListOfKnownSchemasForField(fieldName);
 
                     try {

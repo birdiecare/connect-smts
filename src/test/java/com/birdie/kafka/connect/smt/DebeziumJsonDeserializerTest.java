@@ -517,7 +517,7 @@ public class DebeziumJsonDeserializerTest {
 
         logMessage = logger.getLoggingEvents().get(0).getMessage();
 
-        assertTrue(logMessage.startsWith("Updating schema json#0"));
+        assertTrue(logMessage.startsWith("Updating schema test-json#0"));
         serializedSchema = logMessage.substring(logMessage.indexOf(':') + 2);
         deserializedFromLog = schemaSerDer.deserializeOne(serializedSchema);
         assertEqualsSchemas(deserializedFromLog, transformed.valueSchema().field("json").schema());
@@ -613,7 +613,7 @@ public class DebeziumJsonDeserializerTest {
         transformer.configure(new HashMap<>() {{
             put("optional-struct-fields", "true");
             put("union-previous-messages-schema", "true");
-            put("union-previous-messages-schema.field.json", "[{\"type\":\"STRUCT\",\"name\":\"json\",\"isOptional\":true,\"fields\":[{\"name\":\"bar\",\"index\":0,\"schema\":{\"type\":\"STRING\",\"isOptional\":true}},{\"name\":\"foo\",\"index\":1,\"schema\":{\"type\":\"STRING\",\"isOptional\":true}}]}]");
+            put("union-previous-messages-schema.field.test.json", "[{\"type\":\"STRUCT\",\"name\":\"json\",\"isOptional\":true,\"fields\":[{\"name\":\"bar\",\"index\":0,\"schema\":{\"type\":\"STRING\",\"isOptional\":true}},{\"name\":\"foo\",\"index\":1,\"schema\":{\"type\":\"STRING\",\"isOptional\":true}}]}]");
         }});
 
         SourceRecord transformed = transformer.apply(sourceRecordFromValue(firstMessageContents));

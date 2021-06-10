@@ -26,6 +26,7 @@ transforms.json.optional-struct-fields=true
 |`union-previous-messages-schema.topic.{topic-name}.field.{field-name}`| An array of Kafka Connect schema to be used as initial schema(s) to unify messages with. It's an array in case some are incompatible, on the same field. You can get the serialized schema from the SMT logs as it processes messages. | String | ø |
 |`convert-numbers-to-double`| When `true`, all number fields in structs are converted to double. This avoids compatibility errors when some fields can contain both integers and floats. | Boolean | `false` |
 |`sanitize.field.names`| When `true`, sanitizes the fields name so they are compatible with Avro; [like with Debezium.](https://debezium.io/documentation/reference/1.4/configuration/avro.html#avro-naming) | Boolean | `false` |
+|`probabilistic-fast-path`| When `true`, the connectors will first try to map the message to one of the known schemas if it exists (works with `union-previous-messages-schema`). If that's your most common path, this yields much higher performances. | Boolean | `false`
 
 ## Benchmark
 
@@ -33,3 +34,4 @@ The latest benchmarks (MacBook Pro; 13-inch, 2019) shows the following:
  
 - Without `union-previous-messages-schema`, ~4700 ops/sec.
 - With `union-previous-messages-schema`, ~3500 ops/sec.
+- With `probabilistic-fast-path` activated and triggered all the time, ~16000 ops/sec.

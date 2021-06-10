@@ -18,8 +18,6 @@ import java.util.*;
 public class SchemaTransformer {
     private static final Logger LOGGER = LoggerFactory.getLogger(SchemaTransformer.class);
 
-    private ObjectMapper mapper = new ObjectMapper();
-
     private boolean optionalStructFields;
     private boolean convertNumbersToDouble;
     private boolean sanitizeFieldsName;
@@ -41,15 +39,11 @@ public class SchemaTransformer {
         this.sanitizeFieldsName = sanitizeFieldsName;
     }
 
-    public SchemaAndValue transform(Field field, String jsonValue) {
-        try {
-            return transformJsonValue(
-                this.mapper.readTree(jsonValue),
-                field.name()
-            );
-        } catch (JsonProcessingException e) {
-            throw new IllegalArgumentException("Cannot parse JSON value \""+jsonValue+"\"", e);
-        } 
+    public SchemaAndValue transform(Field field, JsonNode node) {
+        return transformJsonValue(
+            node,
+            field.name()
+        );
     }
 
     SchemaAndValue transformJsonValue(JsonNode obj, String key) {
@@ -59,10 +53,10 @@ public class SchemaTransformer {
                 String fieldName = it.next();
 
                 listOfEntries.add(
-                    new AbstractMap.SimpleEntry<>(
-                        this.sanitizeFieldsName ? AvroUtils.sanitizeColumnName(fieldName) : fieldName,
-                        obj.path(fieldName)
-                    )
+                        new AbstractMap.SimpleEntry<>(
+                                this.sanitizeFieldsName ? AvroUtils.sanitizeColumnName(fieldName) : fieldName,
+                                obj.path(fieldName)
+                        )
                 );
             }
 
@@ -70,7 +64,7 @@ public class SchemaTransformer {
                     key,
                     listOfEntries,
                     entry -> entry.getKey(),
-                    entry -> transformJsonValue(entry.getValue(), key+"_"+entry.getKey()),
+                    entry -> transformJsonValue(entry.getValue(), key + "_" + entry.getKey()),
                     optionalStructFields
             );
         } else if (obj.isArray()) {
@@ -108,7 +102,7 @@ public class SchemaTransformer {
                     schemaBuilder.optional();
                 }
 
-                transformedSchema = schemaBuilder.name(key+"_array_item").build();
+                transformedSchema = schemaBuilder.name(key + "_array_item").build();
             }
 
             SchemaBuilder schemaBuilder = SchemaBuilder.array(transformedSchema);
@@ -117,13 +111,17 @@ public class SchemaTransformer {
             }
 
             return new SchemaAndValue(
-                schemaBuilder.name(key+"_array").build(),
+                    schemaBuilder.name(key + "_array").build(),
                     transformedValues
             );
         } else if (obj.isNull()) {
             return null;
         }
 
+        return transformJsonLiteral(obj);
+    }
+
+    public SchemaAndValue transformJsonLiteral(JsonNode obj) {
         Object value = valueFromLiteralJacksonTreeNode(obj);
         Schema.Type objSchemaType = Values.inferSchema(value).type();
 
@@ -284,7 +282,7 @@ public class SchemaTransformer {
         return schemaBuilder;
     }
 
-    private Object valueFromLiteralJacksonTreeNode(JsonNode node) {
+    public static Object valueFromLiteralJacksonTreeNode(JsonNode node) {
         if (node.isBinary()) {
             try {
                 return node.binaryValue();

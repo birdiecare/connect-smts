@@ -1,10 +1,13 @@
 package com.birdie.kafka.connect.smt;
 
+import com.birdie.kafka.connect.json.SchemaMapper;
 import com.birdie.kafka.connect.json.SchemaTransformer;
 import com.birdie.kafka.connect.utils.LoggingContext;
 import com.birdie.kafka.connect.utils.SchemaSerDer;
 import com.birdie.kafka.connect.utils.StructWalker;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.connect.data.*;
 import org.apache.kafka.connect.source.SourceRecord;
@@ -21,6 +24,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
     private static final Logger LOGGER = LoggerFactory.getLogger(DebeziumJsonDeserializer.class);
     private SchemaSerDer schemaSerDer = new SchemaSerDer();
+    private ObjectMapper objectMapper = new ObjectMapper();
 
     private interface ConfigName {
         String OPTIONAL_STRUCT_FIELDS = "optional-struct-fields";
@@ -28,6 +32,7 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
         String SANITIZE_FIELDS_NAME = "sanitize.field.names";
         String UNION_PREVIOUS_MESSAGES_SCHEMA = "union-previous-messages-schema";
         String UNION_PREVIOUS_MESSAGES_SCHEMA_LOG_UNION_ERRORS = "union-previous-messages-schema.log-union-errors";
+        String PROBABILISTIC_FAST_PATH = "probabilistic-fast-path";
     }
 
     public static final ConfigDef CONFIG_DEF = new ConfigDef()
@@ -36,12 +41,15 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
         .define(ConfigName.SANITIZE_FIELDS_NAME, ConfigDef.Type.BOOLEAN, false, ConfigDef.Importance.MEDIUM, "When true, automatically sanitises the fields name so they are compatible with Avro.")
         .define(ConfigName.UNION_PREVIOUS_MESSAGES_SCHEMA, ConfigDef.Type.BOOLEAN, false, ConfigDef.Importance.MEDIUM, "When true, merges the message's schema with the previous messages' schemas.")
         .define(ConfigName.UNION_PREVIOUS_MESSAGES_SCHEMA_LOG_UNION_ERRORS, ConfigDef.Type.BOOLEAN, false, ConfigDef.Importance.MEDIUM, "When true, if two schemas can't be merged with one another, it will log an error instead of just considering it normal.")
+        .define(ConfigName.PROBABILISTIC_FAST_PATH, ConfigDef.Type.BOOLEAN, false, ConfigDef.Importance.MEDIUM, "When true, tries to map the received message with the latest known schema.");
     ;
 
+    private SchemaMapper schemaMapper;
     private SchemaTransformer schemaTransformer;
 
     private boolean unionPreviousMessagesSchema;
     private boolean unionPreviousMessagesSchemaLogUnionErrors;
+    private boolean useProbabilisticFastPath;
     private Map<String, List<Schema>> knownMessageSchemasPerField = new ConcurrentHashMap<>();
 
     @Override
@@ -110,7 +118,10 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
     public void configure(Map<String, ?> props) {
         final SimpleConfig config = new SimpleConfig(CONFIG_DEF, props);
 
+        unionPreviousMessagesSchemaLogUnionErrors = config.getBoolean(ConfigName.UNION_PREVIOUS_MESSAGES_SCHEMA_LOG_UNION_ERRORS);
         unionPreviousMessagesSchema = config.getBoolean(ConfigName.UNION_PREVIOUS_MESSAGES_SCHEMA);
+        useProbabilisticFastPath = config.getBoolean(ConfigName.PROBABILISTIC_FAST_PATH);
+
         if (unionPreviousMessagesSchema) {
             String fieldSchemaConfigurationPrefix = ConfigName.UNION_PREVIOUS_MESSAGES_SCHEMA+".topic.";
             String fieldSeparator = ".field.";
@@ -141,12 +152,13 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
             }
         }
 
-        unionPreviousMessagesSchemaLogUnionErrors = config.getBoolean(ConfigName.UNION_PREVIOUS_MESSAGES_SCHEMA_LOG_UNION_ERRORS);
         schemaTransformer = new SchemaTransformer(
                 config.getBoolean(ConfigName.OPTIONAL_STRUCT_FIELDS),
                 config.getBoolean(ConfigName.CONVERT_NUMBERS_TO_DOUBLE),
                 config.getBoolean(ConfigName.SANITIZE_FIELDS_NAME)
         );
+
+        this.schemaMapper = new SchemaMapper(this.schemaTransformer);
     }
 
     private List<Schema> getOrCreateListOfKnownSchemasForField(String topicName, String fieldName) {
@@ -159,8 +171,30 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
     }
 
     private SchemaAndValue transformDebeziumJsonField(SourceRecord record, Field field, String jsonString) {
-        SchemaAndValue transformed = schemaTransformer.transform(field, jsonString);
+        JsonNode jsonNode;
+        try {
+            jsonNode = this.objectMapper.readTree(jsonString);
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException("Cannot parse JSON value \""+jsonString+"\"", e);
+        }
 
+        // Probabilistic optimisation: tries to map the message to one of the known schemas.
+        if (unionPreviousMessagesSchema && useProbabilisticFastPath) {
+            for (Schema schema: this.getOrCreateListOfKnownSchemasForField(record.topic(), field.name())) {
+                try {
+                    Object value = this.schemaMapper.mapJsonToSchema(schema, jsonNode);
+                    if (value == null) {
+                        return null;
+                    }
+
+                    return new SchemaAndValue(schema, value);
+                } catch (Exception e) {
+                    // This opportunistic attempt failed, we will transform and merge the schemas.
+                }
+            }
+        }
+
+        SchemaAndValue transformed = schemaTransformer.transform(field, jsonNode);
         if (!unionPreviousMessagesSchema || transformed == null) {
             return transformed;
         }

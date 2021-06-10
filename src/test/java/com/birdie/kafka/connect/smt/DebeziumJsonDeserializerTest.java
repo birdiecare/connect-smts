@@ -648,6 +648,47 @@ public class DebeziumJsonDeserializerTest {
         }});
     }
 
+    @Test
+    public void usesTheFastPathWhenPossible() {
+        Struct firstMessageContents = new Struct(simpleSchema);
+        firstMessageContents.put("id", "1234-5678");
+        firstMessageContents.put("json", "{\"foo\": \"yay\"}");
+
+        DebeziumJsonDeserializer transformer = new DebeziumJsonDeserializer();
+        transformer.configure(new HashMap<>() {{
+            put("optional-struct-fields", "true");
+            put("union-previous-messages-schema", "true");
+            put("union-previous-messages-schema.topic.a-database-name.public.the_database_table.field.json", "[{\"type\":\"STRUCT\",\"name\":\"json\",\"isOptional\":true,\"fields\":[{\"name\":\"bar\",\"index\":0,\"schema\":{\"type\":\"STRING\",\"isOptional\":true}},{\"name\":\"foo\",\"index\":1,\"schema\":{\"type\":\"STRING\",\"isOptional\":true}}]}]");
+            put("probabilistic-fast-path", "true");
+        }});
+
+        SourceRecord transformed = transformer.apply(sourceRecordFromValue(firstMessageContents));
+
+        assertNotNull(transformed.valueSchema().field("json").schema().field("foo"));
+        assertNotNull(transformed.valueSchema().field("json").schema().field("bar"));
+    }
+
+    @Test
+    public void fallsBackOnUnionIfFastTrackFails() {
+        Struct firstMessageContents = new Struct(simpleSchema);
+        firstMessageContents.put("id", "1234-5678");
+        firstMessageContents.put("json", "{\"baz\": \"plop\"}");
+
+        DebeziumJsonDeserializer transformer = new DebeziumJsonDeserializer();
+        transformer.configure(new HashMap<>() {{
+            put("optional-struct-fields", "true");
+            put("union-previous-messages-schema", "true");
+            put("union-previous-messages-schema.topic.a-database-name.public.the_database_table.field.json", "[{\"type\":\"STRUCT\",\"name\":\"json\",\"isOptional\":true,\"fields\":[{\"name\":\"bar\",\"index\":0,\"schema\":{\"type\":\"STRING\",\"isOptional\":true}},{\"name\":\"foo\",\"index\":1,\"schema\":{\"type\":\"STRING\",\"isOptional\":true}}]}]");
+            put("probabilistic-fast-path", "true");
+        }});
+
+        SourceRecord transformed = transformer.apply(sourceRecordFromValue(firstMessageContents));
+
+        assertNotNull(transformed.valueSchema().field("json").schema().field("foo"));
+        assertNotNull(transformed.valueSchema().field("json").schema().field("bar"));
+        assertNotNull(transformed.valueSchema().field("json").schema().field("baz"));
+    }
+
     public static void assertEqualsSchemas(Schema left, Schema right) {
         assertEquals(left.name(), right.name());
         assertEquals(left.isOptional(), right.isOptional());

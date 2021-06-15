@@ -3,9 +3,7 @@ package com.birdie.kafka.connect.json;
 import com.birdie.kafka.connect.utils.AvroUtils;
 import com.birdie.kafka.connect.utils.LoggingContext;
 import com.birdie.kafka.connect.utils.StructWalker;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeType;
 import org.apache.kafka.connect.data.*;
 import org.apache.kafka.connect.errors.DataException;
@@ -21,6 +19,7 @@ public class SchemaTransformer {
     private boolean optionalStructFields;
     private boolean convertNumbersToDouble;
     private boolean sanitizeFieldsName;
+    private List<String> ignoredFields;
 
     private static final Set<Schema.Type> numberSchemaTypes = new HashSet<Schema.Type>(Arrays.asList(
         Schema.Type.INT8,
@@ -33,10 +32,11 @@ public class SchemaTransformer {
         return numberSchemaTypes.contains(schemaType);
     }
 
-    public SchemaTransformer(boolean optionalStructFields, boolean convertNumbersToDouble, boolean sanitizeFieldsName) {
+    public SchemaTransformer(boolean optionalStructFields, boolean convertNumbersToDouble, boolean sanitizeFieldsName, List<String> ignoredFields) {
         this.optionalStructFields = optionalStructFields;
         this.convertNumbersToDouble = convertNumbersToDouble;
         this.sanitizeFieldsName = sanitizeFieldsName;
+        this.ignoredFields = ignoredFields;
     }
 
     public SchemaAndValue transform(Field field, JsonNode node) {
@@ -47,7 +47,9 @@ public class SchemaTransformer {
     }
 
     SchemaAndValue transformJsonValue(JsonNode obj, String key) {
-        if (obj.isObject()) {
+        if (this.ignoredFields.contains(key)) {
+            return null;   
+        } else if (obj.isObject()) {
             List<Map.Entry<String, JsonNode>> listOfEntries = new ArrayList<>();
             for (Iterator<String> it = obj.fieldNames(); it.hasNext(); ) {
                 String fieldName = it.next();

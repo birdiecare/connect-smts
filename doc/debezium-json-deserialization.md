@@ -27,6 +27,7 @@ transforms.json.optional-struct-fields=true
 |`convert-numbers-to-double`| When `true`, all number fields in structs are converted to double. This avoids compatibility errors when some fields can contain both integers and floats. | Boolean | `false` |
 |`sanitize.field.names`| When `true`, sanitizes the fields name so they are compatible with Avro; [like with Debezium.](https://debezium.io/documentation/reference/1.4/configuration/avro.html#avro-naming) | Boolean | `false` |
 |`probabilistic-fast-path`| When `true`, the connectors will first try to map the message to one of the known schemas if it exists (works with `union-previous-messages-schema`). If that's your most common path, this yields much higher performances. | Boolean | `false`
+|`ignored-fields`| An array of fields to be excluded from all schemas. | String | ø |
 
 ## Benchmark
 

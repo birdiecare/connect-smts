@@ -18,8 +18,11 @@ import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Map;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.stream.Collectors;
 
 public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
     private static final Logger LOGGER = LoggerFactory.getLogger(DebeziumJsonDeserializer.class);
@@ -33,6 +36,7 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
         String UNION_PREVIOUS_MESSAGES_SCHEMA = "union-previous-messages-schema";
         String UNION_PREVIOUS_MESSAGES_SCHEMA_LOG_UNION_ERRORS = "union-previous-messages-schema.log-union-errors";
         String PROBABILISTIC_FAST_PATH = "probabilistic-fast-path";
+        String IGNORED_FIELDS = "ignored-fields";
     }
 
     public static final ConfigDef CONFIG_DEF = new ConfigDef()
@@ -41,8 +45,8 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
         .define(ConfigName.SANITIZE_FIELDS_NAME, ConfigDef.Type.BOOLEAN, false, ConfigDef.Importance.MEDIUM, "When true, automatically sanitises the fields name so they are compatible with Avro.")
         .define(ConfigName.UNION_PREVIOUS_MESSAGES_SCHEMA, ConfigDef.Type.BOOLEAN, false, ConfigDef.Importance.MEDIUM, "When true, merges the message's schema with the previous messages' schemas.")
         .define(ConfigName.UNION_PREVIOUS_MESSAGES_SCHEMA_LOG_UNION_ERRORS, ConfigDef.Type.BOOLEAN, false, ConfigDef.Importance.MEDIUM, "When true, if two schemas can't be merged with one another, it will log an error instead of just considering it normal.")
-        .define(ConfigName.PROBABILISTIC_FAST_PATH, ConfigDef.Type.BOOLEAN, false, ConfigDef.Importance.MEDIUM, "When true, tries to map the received message with the latest known schema.");
-    ;
+        .define(ConfigName.PROBABILISTIC_FAST_PATH, ConfigDef.Type.BOOLEAN, false, ConfigDef.Importance.MEDIUM, "When true, tries to map the received message with the latest known schema.")
+        .define(ConfigName.IGNORED_FIELDS, ConfigDef.Type.STRING, "", ConfigDef.Importance.LOW, "Comma-separated list of fields to ignore (optional)");
 
     private SchemaMapper schemaMapper;
     private SchemaTransformer schemaTransformer;
@@ -121,6 +125,11 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
         unionPreviousMessagesSchemaLogUnionErrors = config.getBoolean(ConfigName.UNION_PREVIOUS_MESSAGES_SCHEMA_LOG_UNION_ERRORS);
         unionPreviousMessagesSchema = config.getBoolean(ConfigName.UNION_PREVIOUS_MESSAGES_SCHEMA);
         useProbabilisticFastPath = config.getBoolean(ConfigName.PROBABILISTIC_FAST_PATH);
+        List<String> ignoredFields = new ArrayList<String>();
+        ignoredFields = Arrays.asList(config.getString(ConfigName.IGNORED_FIELDS).split(","))
+                              .stream()
+                              .map(field -> field.replace('.', '_'))
+                              .collect(Collectors.toList());
 
         if (unionPreviousMessagesSchema) {
             String fieldSchemaConfigurationPrefix = ConfigName.UNION_PREVIOUS_MESSAGES_SCHEMA+".topic.";
@@ -155,7 +164,9 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
         schemaTransformer = new SchemaTransformer(
                 config.getBoolean(ConfigName.OPTIONAL_STRUCT_FIELDS),
                 config.getBoolean(ConfigName.CONVERT_NUMBERS_TO_DOUBLE),
-                config.getBoolean(ConfigName.SANITIZE_FIELDS_NAME)
+                config.getBoolean(ConfigName.SANITIZE_FIELDS_NAME),
+                
+                ignoredFields
         );
 
         this.schemaMapper = new SchemaMapper(this.schemaTransformer);

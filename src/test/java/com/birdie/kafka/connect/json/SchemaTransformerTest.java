@@ -6,7 +6,12 @@ import org.junit.Test;
 
 import static org.junit.Assert.*;
 
+import java.util.List;
+import java.util.ArrayList;
+
 public class SchemaTransformerTest {
+    public List<String> ignoredFields = new ArrayList<String>();
+
     @Test
     public void twoIdenticalSchemasWithAnArrayMergedTogetherRemainTheSameStructure() {
         Schema left = SchemaBuilder.struct()
@@ -15,7 +20,7 @@ public class SchemaTransformerTest {
                 .field("array_of_ints", SchemaBuilder.array(SchemaBuilder.int8()))
                 .build();
 
-        Schema merged = new SchemaTransformer(false, false, false).unionSchemas(left, left).build();
+        Schema merged = new SchemaTransformer(false, false, false, ignoredFields).unionSchemas(left, left).build();
 
         assertEquals("Value", merged.name());
         assertNotNull(merged.field("id"));
@@ -43,7 +48,7 @@ public class SchemaTransformerTest {
                 )
                 .build();
 
-        Schema merged = new SchemaTransformer(true, false, false).unionSchemas(left, right).build();
+        Schema merged = new SchemaTransformer(true, false, false, ignoredFields).unionSchemas(left, right).build();
 
         assertNotNull(merged.field("nested"));
         assertNotNull(merged.field("nested").schema().field("bar"));
@@ -71,7 +76,7 @@ public class SchemaTransformerTest {
                 .field("foo", SchemaBuilder.STRING_SCHEMA)
                 .build();
 
-        SchemaTransformer transformer = new SchemaTransformer(true, true, true);
+        SchemaTransformer transformer = new SchemaTransformer(true, true, true, ignoredFields);
 
         assertEquals(transformer.unionSchemas(left, right, left).build(), transformer.unionSchemas(right, left, right).build());
     }

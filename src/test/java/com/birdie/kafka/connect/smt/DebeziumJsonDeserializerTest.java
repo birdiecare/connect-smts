@@ -709,4 +709,44 @@ public class DebeziumJsonDeserializerTest {
             assertEqualsSchemas(left.valueSchema(), right.valueSchema());
         }
     }
+
+    @Test
+    public void ignoresSelectedFields() {
+        Struct firstMessageContents = new Struct(simpleSchema);
+        firstMessageContents.put("id", "1234-5678");
+        firstMessageContents.put("json", "{\"foo\": \"yay\", \"baz\": \"plop\",  \"ignored\": {\"yes\": 1, \"no\": 0}}");
+
+        DebeziumJsonDeserializer transformer = new DebeziumJsonDeserializer();
+        transformer.configure(new HashMap<>() {{
+            put("optional-struct-fields", "true");
+            put("ignored-fields", "json.baz,json.ignored.yes");
+        }});
+
+        SourceRecord transformed = transformer.apply(sourceRecordFromValue(firstMessageContents));
+
+        assertNotNull(transformed.valueSchema().field("json").schema().field("foo"));
+        assertNull(transformed.valueSchema().field("json").schema().field("baz"));
+        assertNull(transformed.valueSchema().field("json").schema().field("ignored").schema().field("yes"));
+        assertNotNull(transformed.valueSchema().field("json").schema().field("ignored").schema().field("no"));
+    }
+
+    @Test
+    public void ignoresSelectedFieldsWithUnderscore() {
+        Struct firstMessageContents = new Struct(simpleSchema);
+        firstMessageContents.put("id", "1234-5678");
+        firstMessageContents.put("json", "{\"foo\": \"yay\", \"baz_baz\": \"plop\",  \"ignore_this\": {\"yes\": 1, \"no\": 0}}");
+
+        DebeziumJsonDeserializer transformer = new DebeziumJsonDeserializer();
+        transformer.configure(new HashMap<>() {{
+            put("optional-struct-fields", "true");
+            put("ignored-fields", "json.baz_baz,json.ignore_this.yes");
+        }});
+
+        SourceRecord transformed = transformer.apply(sourceRecordFromValue(firstMessageContents));
+
+        assertNotNull(transformed.valueSchema().field("json").schema().field("foo"));
+        assertNull(transformed.valueSchema().field("json").schema().field("baz_baz"));
+        assertNull(transformed.valueSchema().field("json").schema().field("ignore_this").schema().field("yes"));
+        assertNotNull(transformed.valueSchema().field("json").schema().field("ignore_this").schema().field("no"));
+    }
 }

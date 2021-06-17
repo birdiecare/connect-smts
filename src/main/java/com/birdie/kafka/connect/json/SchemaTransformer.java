@@ -161,16 +161,19 @@ public class SchemaTransformer {
 
     private Struct repackageStructure(Schema transformedSchema, Struct transformedStruct) {
         Struct repackagedStructure = new Struct(transformedSchema);
+        String transformedSchemaName = parentSchemaName(transformedSchema.name());
 
         for (Field field: transformedStruct.schema().fields()) {
-            Object value = transformedStruct.get(field.name());
-            Schema expectedSchema = transformedSchema.field(field.name()).schema();
+            if (!this.ignoredFields.contains(transformedSchemaName + "_" + field.name())) {
+                Object value = transformedStruct.get(field.name());
+                Schema expectedSchema = transformedSchema.field(field.name()).schema();
 
-            try {
-                repackagedStructure.put(field.name(), repackage(expectedSchema, value));
-            } catch (DataException e) {
-                Schema valueSchema = value instanceof Struct ? ((Struct) value).schema() : null;
-                throw new IllegalArgumentException("Could not construct struct successfully for field "+field.name()+": expected schema "+LoggingContext.describeSchema(expectedSchema)+"; received schema="+LoggingContext.describeSchema(valueSchema), e);
+                try {
+                    repackagedStructure.put(field.name(), repackage(expectedSchema, value));
+                } catch (DataException e) {
+                    Schema valueSchema = value instanceof Struct ? ((Struct) value).schema() : null;
+                    throw new IllegalArgumentException("Could not construct struct successfully for field "+field.name()+": expected schema "+LoggingContext.describeSchema(expectedSchema)+"; received schema="+LoggingContext.describeSchema(valueSchema), e);
+                }
             }
         }
 
@@ -230,14 +233,18 @@ public class SchemaTransformer {
 
                 valueSchemas[i] = schema.valueSchema();
             } else if (schema.type().equals(Schema.Type.STRUCT)) {
-                for (Field field : schema.fields()) {
-                    if (!fieldsByName.containsKey(field.name())) {
-                        fieldsByName.put(field.name(), new ArrayList<>());
-                    }
+                String schemaName = parentSchemaName(schema.name());
 
-                    fieldsByName.get(field.name()).add(
-                        field.schema()
-                    );
+                for (Field field : schema.fields()) {
+                    if (!this.ignoredFields.contains(schemaName + "_" + field.name())) {
+                        if (!fieldsByName.containsKey(field.name())) {
+                            fieldsByName.put(field.name(), new ArrayList<>());
+                        }
+    
+                        fieldsByName.get(field.name()).add(
+                            field.schema()
+                        );
+                    }
                 }
             }
         }
@@ -302,5 +309,18 @@ public class SchemaTransformer {
         }
 
         throw new IllegalArgumentException("Found JSON node of type '"+node.getNodeType()+"' but not supported.");
+    }
+
+    private String parentSchemaName(String transformedArraySchemaName) {
+        if (transformedArraySchemaName == null) {
+            return "";
+        } else {
+            Integer schemaNameIndex = transformedArraySchemaName.lastIndexOf("_array_item");
+            if (schemaNameIndex > 0) {
+                return transformedArraySchemaName.substring(0, schemaNameIndex);
+            } else {
+                return transformedArraySchemaName;
+            }
+        }
     }
 }

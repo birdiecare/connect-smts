@@ -127,8 +127,8 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
         useProbabilisticFastPath = config.getBoolean(ConfigName.PROBABILISTIC_FAST_PATH);
         List<String> ignoredFields = new ArrayList<String>();
         for (String field: config.getString(ConfigName.IGNORED_FIELDS).split(",")) {
-            ignoredFields.add(field.replace('.', '_'));
-          }
+            ignoredFields.add(field.replace('.', '_').replace("[]", "_array_item"));
+        }
 
         if (unionPreviousMessagesSchema) {
             String fieldSchemaConfigurationPrefix = ConfigName.UNION_PREVIOUS_MESSAGES_SCHEMA+".topic.";

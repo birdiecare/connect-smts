@@ -689,6 +689,31 @@ public class DebeziumJsonDeserializerTest {
         assertNotNull(transformed.valueSchema().field("json").schema().field("baz"));
     }
 
+    @Test
+    public void ignoresSelectedFieldsInArrays() {
+        Struct firstMessageContents = new Struct(simpleSchema);
+        firstMessageContents.put("id", "1234-5678");
+        firstMessageContents.put("json", "[{\"foo\": \"yay\", \"ignored\": \"plop\"}]");
+
+        Struct secondMessageContents = new Struct(simpleSchema);
+        secondMessageContents.put("id", "1234-5678");
+        secondMessageContents.put("json", "{\"blah\": \"yay\", \"nested\": {\"again\": [{\"nay\": \"ignored\", \"yay\": \"not_ignored\"}]}}");
+
+        DebeziumJsonDeserializer transformer = new DebeziumJsonDeserializer();
+        transformer.configure(new HashMap<>() {{
+            put("optional-struct-fields", "true");
+            put("ignored-fields", "json[].ignored,json.nested.again[].nay");
+        }});
+
+        SourceRecord transformed = transformer.apply(sourceRecordFromValue(firstMessageContents));
+        SourceRecord secondTransformed = transformer.apply(sourceRecordFromValue(secondMessageContents));
+
+        assertNotNull(transformed.valueSchema().field("json").schema().valueSchema().field("foo"));
+        assertNull(transformed.valueSchema().field("json").schema().valueSchema().field("ignored"));
+        assertNull(secondTransformed.valueSchema().field("json").schema().field("nested").schema().field("again").schema().valueSchema().field("nay"));
+        assertNotNull(secondTransformed.valueSchema().field("json").schema().field("nested").schema().field("again").schema().valueSchema().field("yay"));
+    }
+
     public static void assertEqualsSchemas(Schema left, Schema right) {
         assertEquals(left.name(), right.name());
         assertEquals(left.isOptional(), right.isOptional());

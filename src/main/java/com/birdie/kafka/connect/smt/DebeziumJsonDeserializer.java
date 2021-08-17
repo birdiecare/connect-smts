@@ -129,6 +129,8 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
         for (String field: config.getString(ConfigName.IGNORED_FIELDS).split(",")) {
             ignoredFields.add(field.replace('.', '_').replace("[]", "_array_item"));
         }
+        LOGGER.info("Ignore-fields" + ignoredFields.toString());
+        LOGGER.info("Union-check" + unionPreviousMessagesSchema);
 
         if (unionPreviousMessagesSchema) {
             String fieldSchemaConfigurationPrefix = ConfigName.UNION_PREVIOUS_MESSAGES_SCHEMA+".topic.";

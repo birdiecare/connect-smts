@@ -9,6 +9,7 @@ import org.junit.Test;
 import java.util.HashMap;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 
 public class OutboxTest {
     @Test
@@ -35,7 +36,7 @@ public class OutboxTest {
                 // Where it comes from
                 null, null,
                 // Where it is going
-                "a-database-name.public.the_database_table", 0,
+                "a-database-name.public.the_database_table", null,
                 // Key
                 SchemaBuilder.bytes().optional().build(),
                 "1234".getBytes(),
@@ -47,6 +48,7 @@ public class OutboxTest {
         final SourceRecord transformedRecord = transformer.apply(record);
 
         assertEquals("caregivers.matches.v1", transformedRecord.topic());
+        assertNotNull(transformedRecord.kafkaPartition());
         assertEquals("1", transformedRecord.kafkaPartition().toString());
     }
 }

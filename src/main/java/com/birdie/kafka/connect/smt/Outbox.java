@@ -1,6 +1,7 @@
 package com.birdie.kafka.connect.smt;
 
 import org.apache.kafka.common.config.ConfigDef;
+import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.apache.kafka.connect.transforms.Transformation;
 import org.apache.kafka.connect.transforms.util.SimpleConfig;
@@ -20,9 +21,12 @@ public class Outbox implements Transformation<SourceRecord> {
 
     @java.lang.Override
     public SourceRecord apply(SourceRecord sourceRecord) {
+        Struct value = (Struct) sourceRecord.value();
+        Integer partition = value.getInt32("partition_number");
+
         return sourceRecord.newRecord(
                 targetTopic,
-                sourceRecord.kafkaPartition(),
+                partition,
                 sourceRecord.keySchema(),
                 sourceRecord.key(),
                 sourceRecord.valueSchema(),

@@ -20,7 +20,15 @@ public class Outbox implements Transformation<SourceRecord> {
 
     @java.lang.Override
     public SourceRecord apply(SourceRecord sourceRecord) {
-        return sourceRecord;
+        return sourceRecord.newRecord(
+                targetTopic,
+                sourceRecord.kafkaPartition(),
+                sourceRecord.keySchema(),
+                sourceRecord.key(),
+                sourceRecord.valueSchema(),
+                sourceRecord.value(),
+                sourceRecord.timestamp()
+        );
     }
 
 

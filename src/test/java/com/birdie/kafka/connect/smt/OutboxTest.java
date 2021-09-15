@@ -8,7 +8,7 @@ import org.junit.Test;
 
 import java.util.HashMap;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
 
 public class OutboxTest {
     @Test
@@ -47,6 +47,6 @@ public class OutboxTest {
         final SourceRecord transformedRecord = transformer.apply(record);
 
         assertEquals("caregivers.matches.v1", transformedRecord.topic());
-        assertEquals(1, transformedRecord.kafkaPartition());
+        assertEquals("1", transformedRecord.kafkaPartition().toString());
     }
 }

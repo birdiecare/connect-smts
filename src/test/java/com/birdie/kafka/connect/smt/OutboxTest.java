@@ -21,14 +21,14 @@ public class OutboxTest {
 
         Schema schema = SchemaBuilder.struct()
                 .name("Value")
-                .field("event_key", SchemaBuilder.STRING_SCHEMA)
+                .field("key", SchemaBuilder.STRING_SCHEMA)
                 // Later: `partition_key`, SMT will figure out the number of partition of the target topic by itself
                 .field("partition_number", SchemaBuilder.INT32_SCHEMA)
                 .field("payload", SchemaBuilder.string().name("io.debezium.data.Json").optional().build())
             .build();
 
         Struct value = new Struct(schema);
-        value.put("event_key", "1234");
+        value.put("key", "1234");
         value.put("partition_number", 1);
         value.put("payload", "[\"foo\", \"bar\"]");
 

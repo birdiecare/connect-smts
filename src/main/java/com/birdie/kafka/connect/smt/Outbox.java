@@ -22,15 +22,14 @@ public class Outbox implements Transformation<SourceRecord> {
     @java.lang.Override
     public SourceRecord apply(SourceRecord sourceRecord) {
         Struct value = (Struct) sourceRecord.value();
-        Integer partition = value.getInt32("partition_number");
 
         return sourceRecord.newRecord(
                 targetTopic,
-                partition,
+                value.getInt32("partition_number"),
                 sourceRecord.keySchema(),
                 sourceRecord.key(),
-                sourceRecord.valueSchema(),
-                sourceRecord.value(),
+                sourceRecord.valueSchema().field("payload").schema(),
+                value.get("payload"),
                 sourceRecord.timestamp()
         );
     }

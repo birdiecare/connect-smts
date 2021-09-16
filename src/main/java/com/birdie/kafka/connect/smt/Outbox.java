@@ -58,62 +58,47 @@ public class Outbox implements Transformation<SourceRecord> {
         Struct value = (Struct) sourceRecord.value();
 
         Schema valueSchema = sourceRecord.valueSchema();
-        Headers baseHeaders = sourceRecord.headers();
+        Headers headers = sourceRecord.headers();
 
-        if (autoPartitioning == true) {
-            baseHeaders.add(
+        if (autoPartitioning) {
+            headers.add(
                 "partition_key", 
                 getPartitionKeyValue(sourceRecord),
                 Schema.STRING_SCHEMA
             );
         }
 
+        // Add headers if field exists.
         Field headerField = valueSchema.field("headers");
-
-        SourceRecord transformed = sourceRecord.newRecord(
-                targetTopic,
-                getPartitionNumber(sourceRecord),
-                sourceRecord.keySchema(),
-                sourceRecord.key(),
-                sourceRecord.valueSchema().field("payload").schema(),
-                value.get("payload"),
-                sourceRecord.timestamp(),
-                baseHeaders
-        );
-
         if (headerField != null) {
             if (!headerField.schema().type().equals(Schema.Type.STRING)) {
                 LOGGER.error("Field 'headers' should be a string.");
             } else {
-                Headers headers = sourceRecord.headers();
-
                 try {
                     HashMap<String, String> headersToBeAdded = objectMapper.readValue(
-                            value.getString("headers"),
-                            new TypeReference<HashMap<String, String>>() {}
+                        value.getString("headers"),
+                        new TypeReference<HashMap<String, String>>() {}
                     );
 
                     for (String key : headersToBeAdded.keySet()) {
                         headers.add(key, headersToBeAdded.get(key), Schema.STRING_SCHEMA);
                     }
-
-                    transformed = sourceRecord.newRecord(
-                            sourceRecord.topic(),
-                            sourceRecord.kafkaPartition(),
-                            sourceRecord.keySchema(),
-                            sourceRecord.key(),
-                            sourceRecord.valueSchema(),
-                            sourceRecord.value(),
-                            sourceRecord.timestamp(),
-                            headers
-                    );
                 } catch (JsonProcessingException e) {
                     LOGGER.error("Could not decode headers.", e);
                 }
             }
         }
 
-        return transformed;
+        return sourceRecord.newRecord(
+            targetTopic,
+            getPartitionNumber(sourceRecord),
+            sourceRecord.keySchema(),
+            sourceRecord.key(),
+            sourceRecord.valueSchema().field("payload").schema(),
+            value.get("payload"),
+            sourceRecord.timestamp(),
+            headers
+        );
     }
 
     private Integer getPartitionNumber(SourceRecord sourceRecord) {

@@ -27,18 +27,18 @@ public class Outbox implements Transformation<SourceRecord> {
     private interface ConfigName {
         String TOPIC = "topic";
         String AUTO_PARTITIONING = "auto-partitioning";
-        String NUM_TARGET_PARTITIONS = "num-target-partitions";
+        String NUMBER_OF_PARTITION_IN_TOPIC = "num-partitions";
     }
 
     public static final ConfigDef CONFIG_DEF = new ConfigDef()
         .define(Outbox.ConfigName.TOPIC, ConfigDef.Type.STRING, ConfigDef.Importance.MEDIUM, "The name of the topic to send messages to.")
         .define(Outbox.ConfigName.AUTO_PARTITIONING, ConfigDef.Type.BOOLEAN, false, ConfigDef.Importance.MEDIUM, "When true, SMT will generate new partition number using partition key (requires `num-target-partitions` config field and `partition_key` record field to be set).")
-        .define(Outbox.ConfigName.NUM_TARGET_PARTITIONS, ConfigDef.Type.INT, 0, ConfigDef.Importance.MEDIUM, "Number of partitions on the target topic")
+        .define(Outbox.ConfigName.NUMBER_OF_PARTITION_IN_TOPIC, ConfigDef.Type.INT, 0, ConfigDef.Importance.MEDIUM, "Number of partitions on the target topic")
     ;
 
     private String targetTopic;
     private Boolean autoPartitioning;
-    private Integer targetPartitions;
+    private Integer numberOfPartitionsInTargetTopic;
 
     @java.lang.Override
     public void configure(Map<String, ?> props) {
@@ -46,9 +46,9 @@ public class Outbox implements Transformation<SourceRecord> {
 
         targetTopic = config.getString(ConfigName.TOPIC);
         autoPartitioning = config.getBoolean(ConfigName.AUTO_PARTITIONING);
-        targetPartitions = config.getInt(ConfigName.NUM_TARGET_PARTITIONS);
+        numberOfPartitionsInTargetTopic = config.getInt(ConfigName.NUMBER_OF_PARTITION_IN_TOPIC);
 
-        if (autoPartitioning == true && targetPartitions == 0) {
+        if (autoPartitioning && numberOfPartitionsInTargetTopic == 0) {
             throw new IllegalArgumentException("num-target-partitions is zero/null, when auto-partitioning is set to true");
         }
     }
@@ -122,7 +122,7 @@ public class Outbox implements Transformation<SourceRecord> {
     private Integer getGeneratedPartitionNumber(SourceRecord sourceRecord) {
         String partitionKeyValue = getPartitionKeyValue(sourceRecord);
 
-        return Utils.toPositive(Utils.murmur2(partitionKeyValue.getBytes())) % targetPartitions;
+        return Utils.toPositive(Utils.murmur2(partitionKeyValue.getBytes())) % numberOfPartitionsInTargetTopic;
     }
 
     private String getPartitionKeyValue(SourceRecord sourceRecord) {

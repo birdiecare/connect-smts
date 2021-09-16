@@ -118,7 +118,7 @@ public class OutboxTest {
             // TODO: test missing config
             // TODO: test with 1 partition, expected always being the same
 
-            put("num-target-partitions", 3);
+            put("num-partitions", 3);
         }});
 
         Schema schema = SchemaBuilder.struct()

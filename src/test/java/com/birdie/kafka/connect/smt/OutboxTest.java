@@ -71,6 +71,8 @@ public class OutboxTest {
         assertEquals("caregivers.matches.v1", transformedRecord.topic());
         assertNotNull(transformedRecord.kafkaPartition());
         assertEquals("1", transformedRecord.kafkaPartition().toString());
+        assertEquals("[\"foo\", \"bar\"]", transformedRecord.value());
+        assertEquals(Schema.Type.STRING, transformedRecord.valueSchema().type());
     }
 
     @Test

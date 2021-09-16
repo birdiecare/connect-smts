@@ -58,6 +58,16 @@ public class Outbox implements Transformation<SourceRecord> {
         Struct value = (Struct) sourceRecord.value();
 
         Schema valueSchema = sourceRecord.valueSchema();
+        Headers baseHeaders = sourceRecord.headers();
+
+        if (autoPartitioning == true) {
+            baseHeaders.add(
+                "partition_key", 
+                getPartitionKeyValue(sourceRecord),
+                Schema.STRING_SCHEMA
+            );
+        }
+
         Field headerField = valueSchema.field("headers");
 
         SourceRecord transformed = sourceRecord.newRecord(
@@ -67,7 +77,8 @@ public class Outbox implements Transformation<SourceRecord> {
                 sourceRecord.key(),
                 sourceRecord.valueSchema().field("payload").schema(),
                 value.get("payload"),
-                sourceRecord.timestamp()
+                sourceRecord.timestamp(),
+                baseHeaders
         );
 
         if (headerField != null) {
@@ -124,6 +135,12 @@ public class Outbox implements Transformation<SourceRecord> {
     }
     
     private Integer getGeneratedPartitionNumber(SourceRecord sourceRecord) {
+        String partitionKeyValue = getPartitionKeyValue(sourceRecord);
+
+        return Utils.toPositive(Utils.murmur2(partitionKeyValue.getBytes())) % targetPartitions;
+    }
+
+    private String getPartitionKeyValue(SourceRecord sourceRecord) {
         String partitionKey = ((Struct) sourceRecord.value()).getString("partition_key");
         
         if (partitionKey == null) {
@@ -149,9 +166,7 @@ public class Outbox implements Transformation<SourceRecord> {
             })
             .collect(Collectors.joining());
 
-        Integer partition = Utils.toPositive(Utils.murmur2(partitionKeyValue.getBytes())) % targetPartitions;
-
-        return partition;
+        return partitionKeyValue;
     }
 
     @java.lang.Override

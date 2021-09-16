@@ -154,5 +154,13 @@ public class OutboxTest {
         assertEquals("caregivers.matches.v1", transformedRecord.topic());
         assertNotNull(transformedRecord.kafkaPartition());
         assertEquals("2", transformedRecord.kafkaPartition().toString());
+
+        HashMap<String, Object> headersAsHashmap = new HashMap<>();
+        for (Header header : transformedRecord.headers()) {
+            headersAsHashmap.put(header.key(), header.value());
+        }
+
+        assertTrue(headersAsHashmap.containsKey("partition_key"));
+        assertEquals("some-partition-key-value", headersAsHashmap.get("partition_key"));
     }
 }

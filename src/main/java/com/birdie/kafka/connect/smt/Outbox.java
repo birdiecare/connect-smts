@@ -3,155 +3,207 @@ package com.birdie.kafka.connect.smt;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.connect.data.Field;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.common.utils.Utils;
 import org.apache.kafka.connect.data.Struct;
+import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.header.Headers;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.apache.kafka.connect.transforms.Transformation;
 import org.apache.kafka.connect.transforms.util.SimpleConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import java.util.HashMap;
-import java.util.Arrays;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 public class Outbox implements Transformation<SourceRecord> {
+    public static final String DELETED_FIELD = "__deleted";
+    public static final String PARTITION_KEY_FIELD = "partition_key";
+    public static final String HEADERS = "headers";
+
     private static final Logger LOGGER = LoggerFactory.getLogger(Outbox.class);
+
     private ObjectMapper objectMapper = new ObjectMapper();
     private interface ConfigName {
         String TOPIC = "topic";
-        String AUTO_PARTITIONING = "auto-partitioning";
+        String PARTITION_SETTING = "partition-setting";
         String NUMBER_OF_PARTITION_IN_TOPIC = "num-partitions";
+        String DEBUG_LOG_LEVEL = "debug-log-level";
     }
 
     public static final ConfigDef CONFIG_DEF = new ConfigDef()
         .define(Outbox.ConfigName.TOPIC, ConfigDef.Type.STRING, ConfigDef.Importance.MEDIUM, "The name of the topic to send messages to.")
-        .define(Outbox.ConfigName.AUTO_PARTITIONING, ConfigDef.Type.BOOLEAN, false, ConfigDef.Importance.MEDIUM, "When true, SMT will generate new partition number using partition key (requires `num-target-partitions` config field and `partition_key` record field to be set).")
+        .define(Outbox.ConfigName.PARTITION_SETTING, ConfigDef.Type.STRING, "partition-number", ConfigDef.Importance.MEDIUM, "Set to \"partition-number\" (default) to use the record's partition_number value, or set to \"partition-key\" to generate partition number using record's partition_key value")
         .define(Outbox.ConfigName.NUMBER_OF_PARTITION_IN_TOPIC, ConfigDef.Type.INT, 0, ConfigDef.Importance.MEDIUM, "Number of partitions on the target topic")
+        .define(Outbox.ConfigName.DEBUG_LOG_LEVEL, ConfigDef.Type.STRING, "trace", ConfigDef.Importance.LOW, "Log level for debugging purposes")
     ;
 
     private String targetTopic;
-    private Boolean autoPartitioning;
+    private PartitionSetting partitionSetting;
     private Integer numberOfPartitionsInTargetTopic;
+    private DebugLogLevel debugLogLevel;
+
+    public enum PartitionSetting {
+        PARTITION_KEY, PARTITION_NUMBER
+    }
 
     @java.lang.Override
     public void configure(Map<String, ?> props) {
         final SimpleConfig config = new SimpleConfig(CONFIG_DEF, props);
 
         targetTopic = config.getString(ConfigName.TOPIC);
-        autoPartitioning = config.getBoolean(ConfigName.AUTO_PARTITIONING);
         numberOfPartitionsInTargetTopic = config.getInt(ConfigName.NUMBER_OF_PARTITION_IN_TOPIC);
 
-        if (autoPartitioning && numberOfPartitionsInTargetTopic == 0) {
+        String partitionSettingString = config.getString(ConfigName.PARTITION_SETTING);
+        try {
+            partitionSetting = PartitionSetting.valueOf(partitionSettingString.toUpperCase().replace('-', '_'));
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Invalid partition setting provided: " + partitionSettingString, e);
+        }
+        if (partitionSetting == PartitionSetting.PARTITION_KEY && numberOfPartitionsInTargetTopic == 0) {
             throw new IllegalArgumentException("num-target-partitions is zero/null, when auto-partitioning is set to true");
+        }
+        
+        String debugLogLevelString = config.getString(ConfigName.DEBUG_LOG_LEVEL);
+        try {
+            debugLogLevel = DebugLogLevel.valueOf(debugLogLevelString.toUpperCase());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Invalid log level provided: " + debugLogLevelString, e);
         }
     }
 
     @java.lang.Override
     public SourceRecord apply(SourceRecord sourceRecord) {
-        Struct value = (Struct) sourceRecord.value();
+        DEBUG("Received source record: {}", sourceRecord);
+
+        if (sourceRecord.value() == null) {
+            DEBUG("Dropping debezium-generated tombstones with null partition_key: {}", sourceRecord);
+            return null;
+        }
 
         Schema valueSchema = sourceRecord.valueSchema();
-        Headers headers = sourceRecord.headers();
-
-        if (autoPartitioning) {
-            headers.add(
-                "partition_key", 
-                getPartitionKeyValue(sourceRecord),
-                Schema.STRING_SCHEMA
-            );
+        if (valueSchema.name().equals("io.debezium.connector.common.Heartbeat")) {
+            DEBUG("Ignoring debezium-connector heartbeat: {}", sourceRecord);
+            return sourceRecord;
         }
 
-        // Add headers if field exists.
-        Field headerField = valueSchema.field("headers");
-        if (headerField != null) {
-            if (!headerField.schema().type().equals(Schema.Type.STRING)) {
-                LOGGER.error("Field 'headers' should be a string.");
-            } else {
-                try {
-                    HashMap<String, String> headersToBeAdded = objectMapper.readValue(
-                        value.getString("headers"),
-                        new TypeReference<HashMap<String, String>>() {}
-                    );
+        Struct value = (Struct) sourceRecord.value();
 
-                    for (String key : headersToBeAdded.keySet()) {
-                        headers.add(key, headersToBeAdded.get(key), Schema.STRING_SCHEMA);
-                    }
-                } catch (JsonProcessingException e) {
-                    LOGGER.error("Could not decode headers.", e);
-                }
-            }
+        Schema transformedSchema;
+        Object transformedValue;
+        if (valueSchema.field(DELETED_FIELD) != null && value.getString(DELETED_FIELD).equals("true")) {
+            DEBUG("Generating tombstone from debezium-deletion message: {}", sourceRecord);
+            transformedSchema = null;
+            transformedValue = null;
+        } else {
+            transformedSchema = sourceRecord.valueSchema().field("payload").schema();
+            transformedValue = value.get("payload");
         }
 
-        return sourceRecord.newRecord(
+        SourceRecord transformedRecord = sourceRecord.newRecord(
             targetTopic,
             getPartitionNumber(sourceRecord),
             sourceRecord.keySchema(),
             sourceRecord.key(),
-            sourceRecord.valueSchema().field("payload").schema(),
-            value.get("payload"),
+            transformedSchema,
+            transformedValue,
             sourceRecord.timestamp(),
-            headers
+            getHeaders(sourceRecord)
         );
+
+        DEBUG("Emitting transformed record: {}", transformedRecord);
+        return transformedRecord;
+    }
+
+
+    private Headers getHeaders(SourceRecord sourceRecord) {
+        Headers headers = sourceRecord.headers();
+        Schema valueSchema = sourceRecord.valueSchema();
+        Struct value = (Struct) sourceRecord.value();
+
+        if (partitionSetting.equals(PartitionSetting.PARTITION_KEY)) {
+            headers.add(
+                PARTITION_KEY_FIELD, 
+                ((Struct) sourceRecord.value()).getString(PARTITION_KEY_FIELD),
+                Schema.STRING_SCHEMA
+            );
+        }
+
+        Field headerField = valueSchema.field(HEADERS);
+
+        if (headerField == null) {
+            DEBUG("Header field does not exist on sourceRecord {}", sourceRecord);
+        } else if (value.get(HEADERS) == null) {
+            DEBUG("Header field is null on sourceRecord {}", sourceRecord);
+        } else {
+            Schema.Type schemaType = headerField.schema().type();
+            switch (schemaType) {
+                case STRUCT:
+                    value.getStruct(HEADERS).schema().fields().forEach(field -> {
+                        headers.add(
+                            field.name(),
+                            value.getStruct(HEADERS).getString(field.name()),
+                            Schema.STRING_SCHEMA
+                        );
+                    });
+                    break;
+                case STRING:
+                    try {
+                        objectMapper.readValue(
+                            value.getString(HEADERS),
+                            new TypeReference<HashMap<String, String>>() {}
+                        ).forEach((k, v) -> {
+                            headers.add(k, v, Schema.STRING_SCHEMA);
+                        });
+                    } catch (JsonProcessingException e) {
+                        LOGGER.error("Could not decode headers.", e);
+                    }
+                    break;
+                default:
+                    LOGGER.error("Field 'headers' should be org.apache.kafka.connect.data.Schema.Type.STRUCT, was {}", schemaType);
+                    break;
+            }
+        }
+
+        return headers;
     }
 
     private Integer getPartitionNumber(SourceRecord sourceRecord) {
-        if (autoPartitioning == false) {
-            return getExplicitPartitionNumber(sourceRecord);
+        switch (partitionSetting) {
+            case PARTITION_NUMBER:
+                return getExplicitPartitionNumber(sourceRecord);
+            case PARTITION_KEY:
+                return getGeneratedPartitionNumber(sourceRecord);
+            default:
+                throw new IllegalArgumentException("Invalid partitionSetting provided " + partitionSetting);
         }
-        return getGeneratedPartitionNumber(sourceRecord);
     }
 
-    
     private Integer getExplicitPartitionNumber(SourceRecord sourceRecord) {
-        Integer partition = ((Struct) sourceRecord.value()).getInt32("partition_number");
-
-        if (partition == null) {
-            throw new IllegalArgumentException("unable to find partition_number in source record");
+        try {
+            Integer partition = ((Struct) sourceRecord.value()).getInt32("partition_number");
+            assert partition != null : "partition_number is null";
+            return partition;
+        } catch (Exception|AssertionError e) {
+            throw new DataException("Unable to find partition_number in source record " + sourceRecord.toString(), e);
         }
-
-        return partition;
     }
     
     private Integer getGeneratedPartitionNumber(SourceRecord sourceRecord) {
-        String partitionKeyValue = getPartitionKeyValue(sourceRecord);
-
-        return Utils.toPositive(Utils.murmur2(partitionKeyValue.getBytes())) % numberOfPartitionsInTargetTopic;
-    }
-
-    private String getPartitionKeyValue(SourceRecord sourceRecord) {
-        String partitionKey = ((Struct) sourceRecord.value()).getString("partition_key");
-        
-        if (partitionKey == null) {
-            throw new IllegalArgumentException("partition_key not set in source record");
-        }
-
-        String payloadString = ((Struct) sourceRecord.value()).getString("payload");
-
-        ObjectNode node;
+        String partitionKey;
         try {
-            node = this.objectMapper.readValue(payloadString, ObjectNode.class);
-        } catch (JsonProcessingException e) {
-            throw new IllegalArgumentException("error reading partition_key in the source record");
+            partitionKey = ((Struct) sourceRecord.value()).getString(PARTITION_KEY_FIELD);
+            assert partitionKey != null : "partition_key is null";
+        } catch (Exception|AssertionError e) {
+            throw new DataException("Unable to find partition_key in source record " + sourceRecord.toString(), e);
         }
-
-        // Support composite (comma-separated) partition keys
-        String partitionKeyValue = Arrays.stream(partitionKey.split(","))
-            .map(key -> {
-                if (node.has(key)) {
-                    return node.get(key).asText();
-                }
-                throw new IllegalArgumentException("no partition_key found in the source record");
-            })
-            .collect(Collectors.joining());
-
-        return partitionKeyValue;
+        try {
+            return Utils.toPositive(Utils.murmur2(partitionKey.getBytes())) % numberOfPartitionsInTargetTopic;
+        } catch (Exception e) {
+            throw new DataException("Unable to generate partition_number from partition_key " + partitionKey, e);
+        }
     }
 
     @java.lang.Override
@@ -161,5 +213,28 @@ public class Outbox implements Transformation<SourceRecord> {
 
     @java.lang.Override
     public void close() {
+        // not in use
     }
+
+    // Logging levels
+    public enum DebugLogLevel {
+        DEBUG, TRACE, INFO
+    }
+
+    private void DEBUG(String format, Object ...args) {
+        switch (this.debugLogLevel) {
+            case DEBUG:
+                LOGGER.debug(format, args);
+                break;
+            case TRACE:
+                LOGGER.trace(format, args);
+                break;
+            case INFO:
+                LOGGER.info(format, args);
+                break;
+            default:
+                throw new IllegalArgumentException("Invalid log level provided");
+        }
+    }
+    
 }

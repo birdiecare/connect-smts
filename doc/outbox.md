@@ -30,5 +30,6 @@ transforms.outbox.topic="target-topic"
 |Name|Description|Type|Default|
 |---|---|---|---|
 |`topic`| The name of the topic to send messages to | String | ø |
-|`auto-partitioning`| If `true`, will decide the partition from the `partition_key` | String | `false` |
+|`partition-setting`| If `partition-key`, will decide the partition from the `partition_key`, if `partition-number`, will pick directly from the `partition_number` column | String | `partition-number` |
 |`num-partitions`| The number of partitions in your target topic | String | `false` |
+| `debug-log-level` | The log level setting (trace/debug/info) for debugging logs, to track exactly what record was received and what was transformed/sent | String | `trace`

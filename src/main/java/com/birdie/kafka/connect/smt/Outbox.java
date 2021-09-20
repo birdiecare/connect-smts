@@ -21,7 +21,8 @@ import java.util.Map;
 public class Outbox implements Transformation<SourceRecord> {
     public static final String DELETED_FIELD = "__deleted";
     public static final String PARTITION_KEY_FIELD = "partition_key";
-    public static final String HEADERS = "headers";
+    public static final String HEADERS_FIELD = "headers";
+    public static final String TOPIC_FIELD = "topic";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(Outbox.class);
 
@@ -34,7 +35,7 @@ public class Outbox implements Transformation<SourceRecord> {
     }
 
     public static final ConfigDef CONFIG_DEF = new ConfigDef()
-        .define(Outbox.ConfigName.TOPIC, ConfigDef.Type.STRING, ConfigDef.Importance.MEDIUM, "The name of the topic to send messages to.")
+        .define(Outbox.ConfigName.TOPIC, ConfigDef.Type.STRING, null, ConfigDef.Importance.MEDIUM, "The name of the topic to send messages to.")
         .define(Outbox.ConfigName.PARTITION_SETTING, ConfigDef.Type.STRING, "partition-number", ConfigDef.Importance.MEDIUM, "Set to \"partition-number\" (default) to use the record's partition_number value, or set to \"partition-key\" to generate partition number using record's partition_key value")
         .define(Outbox.ConfigName.NUMBER_OF_PARTITION_IN_TOPIC, ConfigDef.Type.INT, 0, ConfigDef.Importance.MEDIUM, "Number of partitions on the target topic")
         .define(Outbox.ConfigName.DEBUG_LOG_LEVEL, ConfigDef.Type.STRING, "trace", ConfigDef.Importance.LOW, "Log level for debugging purposes")
@@ -102,8 +103,22 @@ public class Outbox implements Transformation<SourceRecord> {
             transformedValue = value.get("payload");
         }
 
+        String topic = targetTopic;
+        if (valueSchema.field(TOPIC_FIELD) != null) {
+            Object targetTopicObject = value.get(TOPIC_FIELD);
+            if (targetTopicObject != null) {
+                if (!(targetTopicObject instanceof String)) {
+                    throw new DataException("Target topic provided should be a string, got "+targetTopicObject.getClass().getName());
+                }
+
+                topic = (String) targetTopicObject;
+            }
+        } else if (topic == null) {
+            throw new DataException("Target topic wasn't provided in the source table nor the configuration.");
+        }
+
         SourceRecord transformedRecord = sourceRecord.newRecord(
-            targetTopic,
+            topic,
             getPartitionNumber(sourceRecord),
             sourceRecord.keySchema(),
             sourceRecord.key(),
@@ -131,20 +146,20 @@ public class Outbox implements Transformation<SourceRecord> {
             );
         }
 
-        Field headerField = valueSchema.field(HEADERS);
+        Field headerField = valueSchema.field(HEADERS_FIELD);
 
         if (headerField == null) {
             DEBUG("Header field does not exist on sourceRecord {}", sourceRecord);
-        } else if (value.get(HEADERS) == null) {
+        } else if (value.get(HEADERS_FIELD) == null) {
             DEBUG("Header field is null on sourceRecord {}", sourceRecord);
         } else {
             Schema.Type schemaType = headerField.schema().type();
             switch (schemaType) {
                 case STRUCT:
-                    value.getStruct(HEADERS).schema().fields().forEach(field -> {
+                    value.getStruct(HEADERS_FIELD).schema().fields().forEach(field -> {
                         headers.add(
                             field.name(),
-                            value.getStruct(HEADERS).getString(field.name()),
+                            value.getStruct(HEADERS_FIELD).getString(field.name()),
                             Schema.STRING_SCHEMA
                         );
                     });
@@ -152,7 +167,7 @@ public class Outbox implements Transformation<SourceRecord> {
                 case STRING:
                     try {
                         objectMapper.readValue(
-                            value.getString(HEADERS),
+                            value.getString(HEADERS_FIELD),
                             new TypeReference<HashMap<String, String>>() {}
                         ).forEach((k, v) -> {
                             headers.add(k, v, Schema.STRING_SCHEMA);

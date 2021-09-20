@@ -41,6 +41,14 @@ public class OutboxTest {
             .field("payload", SchemaBuilder.string().name("io.debezium.data.Json").optional().build())
             .build();
 
+    private final Schema schemaWithPartitionKeyAndTopic = SchemaBuilder.struct()
+            .name("Value")
+            .field("key", SchemaBuilder.STRING_SCHEMA)
+            .field("partition_key", SchemaBuilder.STRING_SCHEMA)
+            .field("topic", SchemaBuilder.STRING_SCHEMA)
+            .field("payload", SchemaBuilder.string().name("io.debezium.data.Json").optional().build())
+            .build();
+
     private final Schema schemaWithStringHeaders = SchemaBuilder.struct()
             .name("Value")
             .field("key", SchemaBuilder.STRING_SCHEMA)
@@ -328,5 +336,35 @@ public class OutboxTest {
         assertEquals("1", transformedRecord.kafkaPartition().toString());
         assertNull(transformedRecord.valueSchema());
         assertNull(transformedRecord.value());
+    }
+
+    @Test
+    public void sendsAMessageToTheTopicRequestedInTheTable() {
+        Struct value = new Struct(schemaWithPartitionKeyAndTopic);
+        value.put("key", "1234");
+        value.put("partition_key", "1234-5678");
+        value.put("topic", "my.topic.v1");
+        value.put("payload", "[\"foo\", \"bar\"]");
+
+        // Re-configure the outbox without a topic
+        transformer = new Outbox();
+        transformer.configure(new HashMap<>() {{
+            put("partition-setting", "partition-key");
+            put("num-partitions", 3);
+        }});
+
+        SourceRecord record = new SourceRecord(
+                null,
+                null,
+                "a-database-name.public.the_database_table",
+                null,
+                SchemaBuilder.bytes().optional().build(),
+                "1234".getBytes(),
+                schemaWithPartitionKeyAndTopic,
+                value
+        );
+
+        final SourceRecord transformedRecord = transformer.apply(record);
+        assertEquals("my.topic.v1", transformedRecord.topic());
     }
 }

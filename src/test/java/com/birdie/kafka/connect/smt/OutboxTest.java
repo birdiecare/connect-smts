@@ -274,25 +274,6 @@ public class OutboxTest {
     }
 
     @Test
-    public void throwsIfAutoPartitioningWithoutMaxNumberConfigured() {
-        Map<String, Object>  props = new HashMap<>() {{
-            put("topic", "caregivers.matches.v1");
-            put("partition-setting", "partition-key");
-        }};
-        assertThrows(IllegalArgumentException.class, () -> {
-            transformer.configure(props);
-        });
-
-        props.put("num-partitions", 0);
-        assertThrows(IllegalArgumentException.class, () -> {
-            transformer.configure(props);
-        });
-
-        props.put("num-partitions", 1);
-        transformer.configure(props);
-    }
-
-    @Test
     public void ignoresDebeziumTombstones() {
         SourceRecord tombstone = new SourceRecord(
             null,
@@ -366,5 +347,35 @@ public class OutboxTest {
 
         final SourceRecord transformedRecord = transformer.apply(record);
         assertEquals("my.topic.v1", transformedRecord.topic());
+    }
+
+    @Test
+    public void sendsAMessageToTheTopicRequestedInTheTableWithoutSMTPartitionConfiguration() {
+        Struct value = new Struct(schemaWithPartitionKeyAndTopic);
+        value.put("key", "1234");
+        value.put("partition_key", "1234-5678");
+        value.put("topic", "my.topic.v1@3");
+        value.put("payload", "[\"foo\", \"bar\"]");
+
+        // Re-configure the outbox without a topic
+        transformer = new Outbox();
+        transformer.configure(new HashMap<>() {{
+            put("partition-setting", "partition-key");
+        }});
+
+        SourceRecord record = new SourceRecord(
+                null,
+                null,
+                "a-database-name.public.the_database_table",
+                null,
+                SchemaBuilder.bytes().optional().build(),
+                "1234".getBytes(),
+                schemaWithPartitionKeyAndTopic,
+                value
+        );
+
+        final SourceRecord transformedRecord = transformer.apply(record);
+        assertEquals("my.topic.v1", transformedRecord.topic());
+        assertEquals("2", transformedRecord.kafkaPartition().toString());
     }
 }

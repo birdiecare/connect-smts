@@ -64,7 +64,7 @@ public class Outbox implements Transformation<SourceRecord> {
             throw new IllegalArgumentException("Invalid partition setting provided: " + partitionSettingString, e);
         }
         if (partitionSetting == PartitionSetting.PARTITION_KEY && numberOfPartitionsInTargetTopic == 0) {
-            throw new IllegalArgumentException("num-target-partitions is zero/null, when auto-partitioning is set to true");
+            // throw new IllegalArgumentException("num-target-partitions is zero/null, when auto-partitioning is set to true");
         }
         
         String debugLogLevelString = config.getString(ConfigName.DEBUG_LOG_LEVEL);
@@ -117,9 +117,11 @@ public class Outbox implements Transformation<SourceRecord> {
             throw new DataException("Target topic wasn't provided in the source table nor the configuration.");
         }
 
+        TopicDescription topicAndPartitionNumber = TopicDescription.fromString(topic);
+
         SourceRecord transformedRecord = sourceRecord.newRecord(
-            topic,
-            getPartitionNumber(sourceRecord),
+            topicAndPartitionNumber.topic,
+            getPartitionNumber(topicAndPartitionNumber, sourceRecord),
             sourceRecord.keySchema(),
             sourceRecord.key(),
             transformedSchema,
@@ -131,7 +133,6 @@ public class Outbox implements Transformation<SourceRecord> {
         DEBUG("Emitting transformed record: {}", transformedRecord);
         return transformedRecord;
     }
-
 
     private Headers getHeaders(SourceRecord sourceRecord) {
         Headers headers = sourceRecord.headers();
@@ -185,12 +186,12 @@ public class Outbox implements Transformation<SourceRecord> {
         return headers;
     }
 
-    private Integer getPartitionNumber(SourceRecord sourceRecord) {
+    private Integer getPartitionNumber(TopicDescription topic, SourceRecord sourceRecord) {
         switch (partitionSetting) {
             case PARTITION_NUMBER:
                 return getExplicitPartitionNumber(sourceRecord);
             case PARTITION_KEY:
-                return getGeneratedPartitionNumber(sourceRecord);
+                return getGeneratedPartitionNumber(topic, sourceRecord);
             default:
                 throw new IllegalArgumentException("Invalid partitionSetting provided " + partitionSetting);
         }
@@ -206,7 +207,7 @@ public class Outbox implements Transformation<SourceRecord> {
         }
     }
     
-    private Integer getGeneratedPartitionNumber(SourceRecord sourceRecord) {
+    private Integer getGeneratedPartitionNumber(TopicDescription topic, SourceRecord sourceRecord) {
         String partitionKey;
         try {
             partitionKey = ((Struct) sourceRecord.value()).getString(PARTITION_KEY_FIELD);
@@ -215,7 +216,16 @@ public class Outbox implements Transformation<SourceRecord> {
             throw new DataException("Unable to find partition_key in source record " + sourceRecord.toString(), e);
         }
         try {
-            return Utils.toPositive(Utils.murmur2(partitionKey.getBytes())) % numberOfPartitionsInTargetTopic;
+            Integer numberOfPartitions = topic.numberOfPartitions;
+            if (numberOfPartitions == null) {
+                numberOfPartitions = this.numberOfPartitionsInTargetTopic;
+
+                if (numberOfPartitions == null) {
+                    throw new DataException("Unable to find the number of partitions for this target topic.");
+                }
+            }
+
+            return Utils.toPositive(Utils.murmur2(partitionKey.getBytes())) % numberOfPartitions;
         } catch (Exception e) {
             throw new DataException("Unable to generate partition_number from partition_key " + partitionKey, e);
         }
@@ -251,5 +261,26 @@ public class Outbox implements Transformation<SourceRecord> {
                 throw new IllegalArgumentException("Invalid log level provided");
         }
     }
-    
+
+    static class TopicDescription {
+        public String topic;
+        public Integer numberOfPartitions;
+
+        private TopicDescription(String topic, Integer partitionNumber) {
+            this.topic = topic;
+            this.numberOfPartitions = partitionNumber;
+        }
+
+        public static TopicDescription fromString(String string) {
+            String[] parts = string.split("@");
+
+            if (parts.length > 2) {
+                throw new IllegalArgumentException("Topic name '"+string+"' is invalid.");
+            } else if (parts.length == 2) {
+                return new TopicDescription(parts[0], Integer.valueOf(parts[1]));
+            }
+
+            return new TopicDescription(string, null);
+        }
+    }
 }

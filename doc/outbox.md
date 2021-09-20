@@ -16,6 +16,7 @@ message key. You can therefore maintain ordering for an aggregate while removing
 The transformed message is expected to have the following fields (if you use Debezium, the table is expected to contain 
 the following columns and [to have been flattened](https://debezium.io/documentation/reference/transformations/event-flattening.html)):
 - `payload`
+- `topic` (optional, can be configured at the SMT level)
 - `partition_number` or `partition_key`
 - `headers` (optional)
 

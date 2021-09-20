@@ -31,20 +31,17 @@ public class Outbox implements Transformation<SourceRecord> {
         String TOPIC = "topic";
         String PARTITION_SETTING = "partition-setting";
         String NUMBER_OF_PARTITION_IN_TOPIC = "num-partitions";
-        String DEBUG_LOG_LEVEL = "debug-log-level";
     }
 
     public static final ConfigDef CONFIG_DEF = new ConfigDef()
         .define(Outbox.ConfigName.TOPIC, ConfigDef.Type.STRING, null, ConfigDef.Importance.MEDIUM, "The name of the topic to send messages to.")
         .define(Outbox.ConfigName.PARTITION_SETTING, ConfigDef.Type.STRING, "partition-number", ConfigDef.Importance.MEDIUM, "Set to \"partition-number\" (default) to use the record's partition_number value, or set to \"partition-key\" to generate partition number using record's partition_key value")
         .define(Outbox.ConfigName.NUMBER_OF_PARTITION_IN_TOPIC, ConfigDef.Type.INT, 0, ConfigDef.Importance.MEDIUM, "Number of partitions on the target topic")
-        .define(Outbox.ConfigName.DEBUG_LOG_LEVEL, ConfigDef.Type.STRING, "trace", ConfigDef.Importance.LOW, "Log level for debugging purposes")
     ;
 
     private String targetTopic;
     private PartitionSetting partitionSetting;
     private Integer numberOfPartitionsInTargetTopic;
-    private DebugLogLevel debugLogLevel;
 
     public enum PartitionSetting {
         PARTITION_KEY, PARTITION_NUMBER
@@ -66,27 +63,20 @@ public class Outbox implements Transformation<SourceRecord> {
         if (partitionSetting == PartitionSetting.PARTITION_KEY && numberOfPartitionsInTargetTopic == 0) {
             // throw new IllegalArgumentException("num-target-partitions is zero/null, when auto-partitioning is set to true");
         }
-        
-        String debugLogLevelString = config.getString(ConfigName.DEBUG_LOG_LEVEL);
-        try {
-            debugLogLevel = DebugLogLevel.valueOf(debugLogLevelString.toUpperCase());
-        } catch (Exception e) {
-            throw new IllegalArgumentException("Invalid log level provided: " + debugLogLevelString, e);
-        }
     }
 
     @java.lang.Override
     public SourceRecord apply(SourceRecord sourceRecord) {
-        DEBUG("Received source record: {}", sourceRecord);
+        LOGGER.debug("Received source record: {}", sourceRecord);
 
         if (sourceRecord.value() == null) {
-            DEBUG("Dropping debezium-generated tombstones with null partition_key: {}", sourceRecord);
+            LOGGER.debug("Dropping debezium-generated tombstones with null partition_key: {}", sourceRecord);
             return null;
         }
 
         Schema valueSchema = sourceRecord.valueSchema();
         if (valueSchema.name().equals("io.debezium.connector.common.Heartbeat")) {
-            DEBUG("Ignoring debezium-connector heartbeat: {}", sourceRecord);
+            LOGGER.debug("Ignoring debezium-connector heartbeat: {}", sourceRecord);
             return sourceRecord;
         }
 
@@ -95,7 +85,7 @@ public class Outbox implements Transformation<SourceRecord> {
         Schema transformedSchema;
         Object transformedValue;
         if (valueSchema.field(DELETED_FIELD) != null && value.getString(DELETED_FIELD).equals("true")) {
-            DEBUG("Generating tombstone from debezium-deletion message: {}", sourceRecord);
+            LOGGER.debug("Generating tombstone from debezium-deletion message: {}", sourceRecord);
             transformedSchema = null;
             transformedValue = null;
         } else {
@@ -130,7 +120,7 @@ public class Outbox implements Transformation<SourceRecord> {
             getHeaders(sourceRecord)
         );
 
-        DEBUG("Emitting transformed record: {}", transformedRecord);
+        LOGGER.debug("Emitting transformed record: {}", transformedRecord);
         return transformedRecord;
     }
 
@@ -150,9 +140,9 @@ public class Outbox implements Transformation<SourceRecord> {
         Field headerField = valueSchema.field(HEADERS_FIELD);
 
         if (headerField == null) {
-            DEBUG("Header field does not exist on sourceRecord {}", sourceRecord);
+            LOGGER.debug("Header field does not exist on sourceRecord {}", sourceRecord);
         } else if (value.get(HEADERS_FIELD) == null) {
-            DEBUG("Header field is null on sourceRecord {}", sourceRecord);
+            LOGGER.debug("Header field is null on sourceRecord {}", sourceRecord);
         } else {
             Schema.Type schemaType = headerField.schema().type();
             switch (schemaType) {
@@ -240,28 +230,6 @@ public class Outbox implements Transformation<SourceRecord> {
     public void close() {
         // not in use
     }
-
-    // Logging levels
-    public enum DebugLogLevel {
-        DEBUG, TRACE, INFO
-    }
-
-    private void DEBUG(String format, Object ...args) {
-        switch (this.debugLogLevel) {
-            case DEBUG:
-                LOGGER.debug(format, args);
-                break;
-            case TRACE:
-                LOGGER.trace(format, args);
-                break;
-            case INFO:
-                LOGGER.info(format, args);
-                break;
-            default:
-                throw new IllegalArgumentException("Invalid log level provided");
-        }
-    }
-
     static class TopicDescription {
         public String topic;
         public Integer numberOfPartitions;

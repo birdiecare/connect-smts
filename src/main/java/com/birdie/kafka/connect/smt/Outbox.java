@@ -89,8 +89,8 @@ public class Outbox implements Transformation<SourceRecord> {
             transformedSchema = null;
             transformedValue = null;
         } else {
-            transformedSchema = sourceRecord.valueSchema().field("payload").schema();
             transformedValue = value.get("payload");
+            transformedSchema = transformedValue != null ? sourceRecord.valueSchema().field("payload").schema() : null;
         }
 
         String topic = targetTopic;

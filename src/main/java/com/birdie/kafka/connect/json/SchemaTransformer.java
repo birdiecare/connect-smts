@@ -11,6 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.util.*;
 
 public class SchemaTransformer {
@@ -53,7 +54,6 @@ public class SchemaTransformer {
             List<Map.Entry<String, JsonNode>> listOfEntries = new ArrayList<>();
             for (Iterator<String> it = obj.fieldNames(); it.hasNext(); ) {
                 String fieldName = it.next();
-
                 listOfEntries.add(
                         new AbstractMap.SimpleEntry<>(
                                 this.sanitizeFieldsName ? AvroUtils.sanitizeColumnName(fieldName) : fieldName,
@@ -125,7 +125,12 @@ public class SchemaTransformer {
 
     public SchemaAndValue transformJsonLiteral(JsonNode obj) {
         Object value = valueFromLiteralJacksonTreeNode(obj);
-        Schema.Type objSchemaType = Values.inferSchema(value).type();
+        // Values.inferSchema returns null for BigInt values.
+        Schema.Type objSchemaType = value instanceof BigInteger ? Schema.Type.FLOAT64 : Values.inferSchema(value).type();
+        if (value instanceof BigInteger) {
+            BigInteger bigIntValue = (BigInteger) value;
+            value =  bigIntValue.doubleValue();
+        }
 
         if (convertNumbersToDouble && isNumberType(objSchemaType)) {
             value = Double.valueOf(value.toString());

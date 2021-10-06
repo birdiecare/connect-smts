@@ -11,6 +11,7 @@ import org.junit.Test;
 import uk.org.lidalia.slf4jtest.TestLogger;
 import uk.org.lidalia.slf4jtest.TestLoggerFactory;
 
+import java.math.BigInteger;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -329,6 +330,25 @@ public class DebeziumJsonDeserializerTest {
 
         Struct transformedValue = (Struct) transformedRecord.value();
         assertEquals(Double.valueOf(37.0), transformedValue.getStruct("json").getFloat64("temperature"));
+    }
+
+    @Test
+    public void handlesBigIntegers() {
+        Struct value = new Struct(simpleSchema);
+        value.put("id", "1234-5678");
+        value.put("json", "{\"big_number\": 190000000000000100000}");
+
+        final SourceRecord transformedRecord = doTransform(value, new HashMap<>() {{
+           put("convert-numbers-to-double", "true");
+        }});
+
+        Schema transformedValueSchema = transformedRecord.valueSchema();
+
+        assertEquals(Schema.Type.FLOAT64, transformedValueSchema.field("json").schema().field("big_number").schema().type());
+
+        Struct transformedValue = (Struct) transformedRecord.value();
+        Double bigNumberValue = new BigInteger("190000000000000100000").doubleValue();
+        assertEquals(bigNumberValue, transformedValue.getStruct("json").getFloat64("big_number"));
     }
 
     @Test

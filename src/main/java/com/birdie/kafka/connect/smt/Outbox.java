@@ -151,7 +151,7 @@ public class Outbox implements Transformation<SourceRecord> {
                         headers.add(
                             field.name(),
                             value.getStruct(HEADERS_FIELD).getString(field.name()),
-                            Schema.STRING_SCHEMA
+                            Schema.OPTIONAL_STRING_SCHEMA
                         );
                     });
                     break;
@@ -161,7 +161,7 @@ public class Outbox implements Transformation<SourceRecord> {
                             value.getString(HEADERS_FIELD),
                             new TypeReference<HashMap<String, String>>() {}
                         ).forEach((k, v) -> {
-                            headers.add(k, v, Schema.STRING_SCHEMA);
+                            headers.add(k, v, Schema.OPTIONAL_STRING_SCHEMA);
                         });
                     } catch (JsonProcessingException e) {
                         LOGGER.error("Could not decode headers.", e);

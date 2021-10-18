@@ -144,6 +144,30 @@ public class OutboxTest {
     }
 
     @Test
+    public void sendsAMessageWithHeadersContainingEmptyAndNumericValues() {
+        Struct value = new Struct(schemaWithStringHeaders);
+        value.put("key", "1234");
+        value.put("partition_number", 1);
+        value.put("payload", "[\"foo\", \"bar\"]");
+        value.put("headers", "{\"event_number\": 1234, \"agency_id\": null}");
+
+        SourceRecord record = new SourceRecord(
+                null,
+                null,
+                "a-database-name.public.the_database_table",
+                null,
+                SchemaBuilder.bytes().optional().build(),
+                "1234".getBytes(),
+                schemaWithStringHeaders,
+                value
+        );
+
+        final SourceRecord transformedRecord = transformer.apply(record);
+        assertEquals("1234", transformedRecord.headers().lastWithName("event_number").value());
+        assertNull(transformedRecord.headers().lastWithName("agency_id").value());
+    }
+
+    @Test
     public void sendsAMessageWithNullHeaders() {
         Struct value = new Struct(schemaWithStringHeaders);
         value.put("key", "1234");

@@ -197,7 +197,7 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
                         return null;
                     }
 
-                    //Checking if previous schema is valid
+                    // Checking if previous schema is valid
                     try{
                         ConnectSchema.validateValue(schema, value);
                         return new SchemaAndValue(schema, value);

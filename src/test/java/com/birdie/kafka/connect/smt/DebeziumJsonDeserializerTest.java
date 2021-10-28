@@ -518,7 +518,7 @@ public class DebeziumJsonDeserializerTest {
         thirdMessageContents.put("json", "{\n" +
                 "    \"enabled\": true,\n" +
                 "    \"generated_at\": \"2021-10-27T06:22:13.487Z\",\n" +
-                "    \"qr_code_content\": \"b9bd9b86-2d2d-4dde-800e-03d4c25ccd9d\"\n" +
+                "    \"qr_code_content\": \"2342dfs-32342-dsdf22\"\n" +
                 "}");
 
         Struct fourthMessageContents = new Struct(simpleSchema);

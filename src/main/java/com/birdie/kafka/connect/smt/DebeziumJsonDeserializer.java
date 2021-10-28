@@ -10,6 +10,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.connect.data.*;
+import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.apache.kafka.connect.transforms.Transformation;
 import org.apache.kafka.connect.transforms.util.SimpleConfig;
@@ -19,15 +20,13 @@ import org.slf4j.LoggerFactory;
 import java.util.List;
 import java.util.Map;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.stream.Collectors;
 
 public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
     private static final Logger LOGGER = LoggerFactory.getLogger(DebeziumJsonDeserializer.class);
-    private SchemaSerDer schemaSerDer = new SchemaSerDer();
-    private ObjectMapper objectMapper = new ObjectMapper();
+    private final SchemaSerDer schemaSerDer = new SchemaSerDer();
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     private interface ConfigName {
         String OPTIONAL_STRUCT_FIELDS = "optional-struct-fields";
@@ -54,7 +53,7 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
     private boolean unionPreviousMessagesSchema;
     private boolean unionPreviousMessagesSchemaLogUnionErrors;
     private boolean useProbabilisticFastPath;
-    private Map<String, List<Schema>> knownMessageSchemasPerField = new ConcurrentHashMap<>();
+    private final Map<String, List<Schema>> knownMessageSchemasPerField = new ConcurrentHashMap<>();
 
     @Override
     public SourceRecord apply(SourceRecord record) {
@@ -129,7 +128,7 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
         for (String field: config.getString(ConfigName.IGNORED_FIELDS).split(",")) {
             ignoredFields.add(field.replace('.', '_').replace("[]", "_array_item"));
         }
-        LOGGER.info("Ignore-fields: " + ignoredFields.toString());
+        LOGGER.info("Ignore-fields: " + ignoredFields);
         LOGGER.info("Union-check: " + unionPreviousMessagesSchema);
 
         if (unionPreviousMessagesSchema) {
@@ -198,7 +197,14 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
                         return null;
                     }
 
-                    return new SchemaAndValue(schema, value);
+                    //Checking if previous schema is valid
+                    try{
+                        ConnectSchema.validateValue(schema, value);
+                        return new SchemaAndValue(schema, value);
+                    }
+                    catch (DataException e) {
+                        LOGGER.debug("Schema mapping with previous schemas failed: " + e);
+                    }
                 } catch (Exception e) {
                     // This opportunistic attempt failed, we will transform and merge the schemas.
                 }

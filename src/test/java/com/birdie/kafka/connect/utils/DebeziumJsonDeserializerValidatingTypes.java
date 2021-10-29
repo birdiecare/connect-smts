@@ -19,7 +19,7 @@ public class DebeziumJsonDeserializerValidatingTypes extends DebeziumJsonDeseria
     }
 
     @Override
-    protected SchemaAndValue checkSchema(Schema schema, Object value) {
+    protected SchemaAndValue schemaAndValueIfValid(Schema schema, Object value) {
         return new SchemaAndValue(schema, value);
     }
 }

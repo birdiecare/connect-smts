@@ -180,7 +180,7 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
         return this.knownMessageSchemasPerField.get(key);
     }
 
-    protected SchemaAndValue checkSchema(Schema schema, Object value) {
+    protected SchemaAndValue schemaAndValueIfValid(Schema schema, Object value) {
         try{
             ConnectSchema.validateValue(schema, value);
             return new SchemaAndValue(schema, value);
@@ -209,7 +209,7 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
                     }
 
                     // Checking if previous schema is valid
-                    return checkSchema(schema, value);
+                    return schemaAndValueIfValid(schema, value);
                 } catch (Exception e) {
                     // This opportunistic attempt failed, we will transform and merge the schemas.
                 }

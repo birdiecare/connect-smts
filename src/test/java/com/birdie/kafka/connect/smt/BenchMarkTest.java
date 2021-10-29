@@ -1,7 +1,6 @@
 package com.birdie.kafka.connect.smt;
 
-import com.birdie.kafka.connect.utils.TransformDebeziumBenchMarkValidatingSchemas;
-import com.birdie.kafka.connect.utils.TransformDebeziumBenchMarkValidatingTypes;
+import com.birdie.kafka.connect.utils.DebeziumJsonDeserializerValidatingTypes;
 import org.apache.kafka.connect.data.*;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.junit.Test;
@@ -152,24 +151,24 @@ public class BenchMarkTest extends DebeziumJsonDeserializerTest{
     @Benchmark
     @OutputTimeUnit(TimeUnit.MILLISECONDS)
     public void benchMarkValidatingSchemasOneStruct() {
-        executeTestOneStruct(new TransformDebeziumBenchMarkValidatingSchemas());
+        executeTestOneStruct(new DebeziumJsonDeserializer());
     }
 
     @Benchmark
     @OutputTimeUnit(TimeUnit.MILLISECONDS)
     public void benchMarkValidatingTypesOneStruct() {
-        executeTestOneStruct(new TransformDebeziumBenchMarkValidatingTypes());
+        executeTestOneStruct(new DebeziumJsonDeserializerValidatingTypes());
     }
 
     @Benchmark
     @OutputTimeUnit(TimeUnit.MILLISECONDS)
     public void benchMarkValidatingSchemasMultipleStruct() {
-        executeTestMultipleStruct(new TransformDebeziumBenchMarkValidatingSchemas());
+        executeTestMultipleStruct(new DebeziumJsonDeserializer());
     }
 
     @Benchmark
     @OutputTimeUnit(TimeUnit.MILLISECONDS)
     public void benchMarkValidatingTypesMultipleStruct() {
-        executeTestMultipleStruct(new TransformDebeziumBenchMarkValidatingTypes());
+        executeTestMultipleStruct(new DebeziumJsonDeserializerValidatingTypes());
     }
 }

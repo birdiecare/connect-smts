@@ -47,7 +47,7 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
         .define(ConfigName.PROBABILISTIC_FAST_PATH, ConfigDef.Type.BOOLEAN, false, ConfigDef.Importance.MEDIUM, "When true, tries to map the received message with the latest known schema.")
         .define(ConfigName.IGNORED_FIELDS, ConfigDef.Type.STRING, "", ConfigDef.Importance.LOW, "Comma-separated list of fields to ignore (optional)");
 
-    private SchemaMapper schemaMapper;
+    protected SchemaMapper schemaMapper;
     protected SchemaTransformer schemaTransformer;
 
     protected boolean unionPreviousMessagesSchema;
@@ -180,7 +180,18 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
         return this.knownMessageSchemasPerField.get(key);
     }
 
-    protected SchemaAndValue transformDebeziumJsonField(SourceRecord record, Field field, String jsonString) {
+    protected SchemaAndValue checkSchema(Schema schema, Object value) {
+        try{
+            ConnectSchema.validateValue(schema, value);
+            return new SchemaAndValue(schema, value);
+        }
+        catch (DataException e) {
+            LOGGER.debug("Schema mapping with previous schemas failed: " + e);
+            throw e;
+        }
+    }
+
+    private SchemaAndValue transformDebeziumJsonField(SourceRecord record, Field field, String jsonString) {
         JsonNode jsonNode;
         try {
             jsonNode = this.objectMapper.readTree(jsonString);
@@ -198,13 +209,7 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
                     }
 
                     // Checking if previous schema is valid
-                    try{
-                        ConnectSchema.validateValue(schema, value);
-                        return new SchemaAndValue(schema, value);
-                    }
-                    catch (DataException e) {
-                        LOGGER.debug("Schema mapping with previous schemas failed: " + e);
-                    }
+                    return checkSchema(schema, value);
                 } catch (Exception e) {
                     // This opportunistic attempt failed, we will transform and merge the schemas.
                 }

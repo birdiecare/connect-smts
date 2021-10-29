@@ -1,21 +1,24 @@
-package com.birdie.kafka.connect.json;
+package com.birdie.kafka.connect.utils;
 
+import com.birdie.kafka.connect.json.SchemaMapper;
+import com.birdie.kafka.connect.json.SchemaTransformer;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.kafka.connect.data.Field;
 import org.apache.kafka.connect.data.Schema;
+import org.apache.kafka.connect.data.SchemaAndValue;
 import org.apache.kafka.connect.data.Struct;
+import org.apache.kafka.connect.errors.DataException;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class SchemaMapper {
-    protected SchemaTransformer schemaTransformer;
+class SchemaMapperBenchMark extends SchemaMapper {
 
-    public SchemaMapper(SchemaTransformer schemaTransformer)
-    {
-        this.schemaTransformer = schemaTransformer;
+    public SchemaMapperBenchMark(SchemaTransformer schemaTransformer) {
+        super(schemaTransformer);
     }
 
+    @Override
     public Object mapJsonToSchema(Schema schema, JsonNode json) {
         if (json == null || json.isNull()) {
             if (schema.isOptional()) {
@@ -43,8 +46,8 @@ public class SchemaMapper {
                 }
 
                 struct.put(field.getKey(), mapJsonToSchema(
-                    fieldInSchema.schema(),
-                    fieldValue
+                        fieldInSchema.schema(),
+                        fieldValue
                 ));
             });
 
@@ -62,6 +65,9 @@ public class SchemaMapper {
             return values;
         }
 
-        return this.schemaTransformer.transformJsonLiteral(json).value();
+        SchemaAndValue literalSchemaAndValue = this.schemaTransformer.transformJsonLiteral(json);
+        if (literalSchemaAndValue.schema().type() != schema.type())
+            throw new DataException("Schemas in literals are different");
+        return literalSchemaAndValue.value();
     }
 }

@@ -2,10 +2,7 @@ package com.birdie.kafka.connect.smt;
 
 import com.birdie.kafka.connect.utils.SchemaSerDer;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import org.apache.kafka.connect.data.Field;
-import org.apache.kafka.connect.data.Schema;
-import org.apache.kafka.connect.data.SchemaBuilder;
-import org.apache.kafka.connect.data.Struct;
+import org.apache.kafka.connect.data.*;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.junit.Test;
 import uk.org.lidalia.slf4jtest.TestLogger;
@@ -19,7 +16,7 @@ import static org.junit.Assert.*;
 
 
 public class DebeziumJsonDeserializerTest {
-    private static final Schema simpleSchema = SchemaBuilder.struct()
+    protected static final Schema simpleSchema = SchemaBuilder.struct()
         .name("Value")
         .field("id", SchemaBuilder.STRING_SCHEMA)
         .field("json", SchemaBuilder.string().name("io.debezium.data.Json").optional().build())
@@ -36,7 +33,7 @@ public class DebeziumJsonDeserializerTest {
         return doTransform(sourceRecordFromValue(value), props);
     }
 
-    public static SourceRecord sourceRecordFromValue(Struct value) {
+    protected static SourceRecord sourceRecordFromValue(Struct value) {
         return new SourceRecord(
                 null, null, "a-database-name.public.the_database_table", 0,
                 SchemaBuilder.bytes().optional().build(), "key".getBytes(), simpleSchema, value);
@@ -504,6 +501,52 @@ public class DebeziumJsonDeserializerTest {
         }});
 
         transformer.apply(sourceRecordFromValue(firstMessageContents));
+    }
+
+    @Test
+    public void handlesRootLiteralsInJson() {
+        Struct firstMessageContents = new Struct(simpleSchema);
+        firstMessageContents.put("id", "1234-5678");
+        firstMessageContents.put("json", "true");
+
+        Struct secondMessageContents = new Struct(simpleSchema);
+        secondMessageContents.put("id", "1234-5679");
+        secondMessageContents.put("json", "500");
+
+        Struct thirdMessageContents = new Struct(simpleSchema);
+        thirdMessageContents.put("id", "1234-5680");
+        thirdMessageContents.put("json", "{\n" +
+                "    \"enabled\": true,\n" +
+                "    \"generated_at\": \"2021-10-27T06:22:13.487Z\",\n" +
+                "    \"qr_code_content\": \"2342dfs-32342-dsdf22\"\n" +
+                "}");
+
+        Struct fourthMessageContents = new Struct(simpleSchema);
+        fourthMessageContents.put("id", "1234-5678");
+        fourthMessageContents.put("json", "false");
+
+        Struct fifthMessageContents = new Struct(simpleSchema);
+        fifthMessageContents.put("id", "1234-5678");
+        fifthMessageContents.put("json", "1000");
+
+
+        DebeziumJsonDeserializer transformer = new DebeziumJsonDeserializer();
+        transformer.configure(new HashMap<>() {{
+            put("optional-struct-fields", "true");
+            put("union-previous-messages-schema", "true");
+            put("probabilistic-fast-path", "true");
+        }});
+
+        SourceRecord firstRecord = transformer.apply(sourceRecordFromValue(firstMessageContents));
+        assertTrue(firstRecord.valueSchema().fields().stream().anyMatch(field -> field.schema().type().getName().equals("boolean")));
+        SourceRecord secondRecord = transformer.apply(sourceRecordFromValue(secondMessageContents));
+        assertTrue(secondRecord.valueSchema().fields().stream().anyMatch(field -> field.schema().type().getName().equals("int32")));
+        SourceRecord thirdRecord = transformer.apply(sourceRecordFromValue(thirdMessageContents));
+        assertTrue(thirdRecord.valueSchema().fields().stream().anyMatch(field -> field.schema().type().getName().equals("struct")));
+        SourceRecord fourthRecord = transformer.apply(sourceRecordFromValue(fourthMessageContents));
+        assertTrue(fourthRecord.valueSchema().fields().stream().anyMatch(field -> field.schema().type().getName().equals("boolean")));
+        SourceRecord fifthRecord = transformer.apply(sourceRecordFromValue(fifthMessageContents));
+        assertTrue(fifthRecord.valueSchema().fields().stream().anyMatch(field -> field.schema().type().getName().equals("int32")));
     }
 
     @Test

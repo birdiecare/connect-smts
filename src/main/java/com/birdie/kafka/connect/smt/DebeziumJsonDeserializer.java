@@ -25,8 +25,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
     private static final Logger LOGGER = LoggerFactory.getLogger(DebeziumJsonDeserializer.class);
-    private final SchemaSerDer schemaSerDer = new SchemaSerDer();
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    protected final SchemaSerDer schemaSerDer = new SchemaSerDer();
+    protected final ObjectMapper objectMapper = new ObjectMapper();
 
     private interface ConfigName {
         String OPTIONAL_STRUCT_FIELDS = "optional-struct-fields";
@@ -48,12 +48,12 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
         .define(ConfigName.IGNORED_FIELDS, ConfigDef.Type.STRING, "", ConfigDef.Importance.LOW, "Comma-separated list of fields to ignore (optional)");
 
     private SchemaMapper schemaMapper;
-    private SchemaTransformer schemaTransformer;
+    protected SchemaTransformer schemaTransformer;
 
-    private boolean unionPreviousMessagesSchema;
-    private boolean unionPreviousMessagesSchemaLogUnionErrors;
-    private boolean useProbabilisticFastPath;
-    private final Map<String, List<Schema>> knownMessageSchemasPerField = new ConcurrentHashMap<>();
+    protected boolean unionPreviousMessagesSchema;
+    protected boolean unionPreviousMessagesSchemaLogUnionErrors;
+    protected boolean useProbabilisticFastPath;
+    protected final Map<String, List<Schema>> knownMessageSchemasPerField = new ConcurrentHashMap<>();
 
     @Override
     public SourceRecord apply(SourceRecord record) {
@@ -171,7 +171,7 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
         this.schemaMapper = new SchemaMapper(this.schemaTransformer);
     }
 
-    private List<Schema> getOrCreateListOfKnownSchemasForField(String topicName, String fieldName) {
+    protected List<Schema> getOrCreateListOfKnownSchemasForField(String topicName, String fieldName) {
         String key = topicName + "|" + fieldName;
         if (!this.knownMessageSchemasPerField.containsKey(key)) {
             this.knownMessageSchemasPerField.put(key, new CopyOnWriteArrayList<>());
@@ -180,7 +180,7 @@ public class DebeziumJsonDeserializer implements Transformation<SourceRecord> {
         return this.knownMessageSchemasPerField.get(key);
     }
 
-    private SchemaAndValue transformDebeziumJsonField(SourceRecord record, Field field, String jsonString) {
+    protected SchemaAndValue transformDebeziumJsonField(SourceRecord record, Field field, String jsonString) {
         JsonNode jsonNode;
         try {
             jsonNode = this.objectMapper.readTree(jsonString);

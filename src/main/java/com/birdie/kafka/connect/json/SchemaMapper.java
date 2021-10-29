@@ -3,7 +3,9 @@ package com.birdie.kafka.connect.json;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.kafka.connect.data.Field;
 import org.apache.kafka.connect.data.Schema;
+import org.apache.kafka.connect.data.SchemaAndValue;
 import org.apache.kafka.connect.data.Struct;
+import org.apache.kafka.connect.errors.DataException;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -62,6 +64,10 @@ public class SchemaMapper {
             return values;
         }
 
+        /*SchemaAndValue literalSchemaAndValue = this.schemaTransformer.transformJsonLiteral(json);
+        if (literalSchemaAndValue.schema().type() != schema.type())
+            throw new DataException("Schemas in literals are different");
+        return literalSchemaAndValue.value();*/
         return this.schemaTransformer.transformJsonLiteral(json).value();
     }
 }

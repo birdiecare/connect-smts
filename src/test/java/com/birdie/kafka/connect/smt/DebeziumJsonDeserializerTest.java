@@ -16,7 +16,7 @@ import static org.junit.Assert.*;
 
 
 public class DebeziumJsonDeserializerTest {
-    private static final Schema simpleSchema = SchemaBuilder.struct()
+    protected static final Schema simpleSchema = SchemaBuilder.struct()
         .name("Value")
         .field("id", SchemaBuilder.STRING_SCHEMA)
         .field("json", SchemaBuilder.string().name("io.debezium.data.Json").optional().build())
@@ -33,7 +33,7 @@ public class DebeziumJsonDeserializerTest {
         return doTransform(sourceRecordFromValue(value), props);
     }
 
-    public static SourceRecord sourceRecordFromValue(Struct value) {
+    protected static SourceRecord sourceRecordFromValue(Struct value) {
         return new SourceRecord(
                 null, null, "a-database-name.public.the_database_table", 0,
                 SchemaBuilder.bytes().optional().build(), "key".getBytes(), simpleSchema, value);

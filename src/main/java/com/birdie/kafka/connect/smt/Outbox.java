@@ -29,16 +29,19 @@ public class Outbox implements Transformation<SourceRecord> {
     private ObjectMapper objectMapper = new ObjectMapper();
     private interface ConfigName {
         String TOPIC = "topic";
+        String TOPIC_PREFIX = "topic-prefix";
         String PARTITION_SETTING = "partition-setting";
         String NUMBER_OF_PARTITION_IN_TOPIC = "num-partitions";
     }
 
     public static final ConfigDef CONFIG_DEF = new ConfigDef()
-        .define(Outbox.ConfigName.TOPIC, ConfigDef.Type.STRING, null, ConfigDef.Importance.MEDIUM, "The name of the topic to send messages to.")
-        .define(Outbox.ConfigName.PARTITION_SETTING, ConfigDef.Type.STRING, "partition-number", ConfigDef.Importance.MEDIUM, "Set to \"partition-number\" (default) to use the record's partition_number value, or set to \"partition-key\" to generate partition number using record's partition_key value")
-        .define(Outbox.ConfigName.NUMBER_OF_PARTITION_IN_TOPIC, ConfigDef.Type.INT, 0, ConfigDef.Importance.MEDIUM, "Number of partitions on the target topic")
+            .define(Outbox.ConfigName.TOPIC, ConfigDef.Type.STRING, null, ConfigDef.Importance.MEDIUM, "The name of the topic to send messages to.")
+            .define(ConfigName.TOPIC_PREFIX, ConfigDef.Type.STRING, null, ConfigDef.Importance.LOW, "Prefix added to the name of the topic")
+            .define(Outbox.ConfigName.PARTITION_SETTING, ConfigDef.Type.STRING, "partition-number", ConfigDef.Importance.MEDIUM, "Set to \"partition-number\" (default) to use the record's partition_number value, or set to \"partition-key\" to generate partition number using record's partition_key value")
+            .define(Outbox.ConfigName.NUMBER_OF_PARTITION_IN_TOPIC, ConfigDef.Type.INT, 0, ConfigDef.Importance.MEDIUM, "Number of partitions on the target topic")
     ;
 
+    private String targetTopicPrefix;
     private String targetTopic;
     private PartitionSetting partitionSetting;
     private Integer numberOfPartitionsInTargetTopic;
@@ -51,7 +54,8 @@ public class Outbox implements Transformation<SourceRecord> {
     public void configure(Map<String, ?> props) {
         final SimpleConfig config = new SimpleConfig(CONFIG_DEF, props);
 
-        targetTopic = config.getString(ConfigName.TOPIC);
+        targetTopicPrefix = config.getString(ConfigName.TOPIC_PREFIX);
+        targetTopic = (targetTopicPrefix == null ? "" : targetTopicPrefix + ".") + config.getString(ConfigName.TOPIC);
         numberOfPartitionsInTargetTopic = config.getInt(ConfigName.NUMBER_OF_PARTITION_IN_TOPIC);
 
         String partitionSettingString = config.getString(ConfigName.PARTITION_SETTING);
@@ -59,9 +63,6 @@ public class Outbox implements Transformation<SourceRecord> {
             partitionSetting = PartitionSetting.valueOf(partitionSettingString.toUpperCase().replace('-', '_'));
         } catch (Exception e) {
             throw new IllegalArgumentException("Invalid partition setting provided: " + partitionSettingString, e);
-        }
-        if (partitionSetting == PartitionSetting.PARTITION_KEY && numberOfPartitionsInTargetTopic == 0) {
-            // throw new IllegalArgumentException("num-target-partitions is zero/null, when auto-partitioning is set to true");
         }
     }
 
@@ -101,7 +102,7 @@ public class Outbox implements Transformation<SourceRecord> {
                     throw new DataException("Target topic provided should be a string, got "+targetTopicObject.getClass().getName());
                 }
 
-                topic = (String) targetTopicObject;
+                topic = (targetTopicPrefix == null ? "" : targetTopicPrefix + ".") + targetTopicObject;
             }
         } else if (topic == null) {
             throw new DataException("Target topic wasn't provided in the source table nor the configuration.");
@@ -131,7 +132,7 @@ public class Outbox implements Transformation<SourceRecord> {
 
         if (partitionSetting.equals(PartitionSetting.PARTITION_KEY)) {
             headers.add(
-                PARTITION_KEY_FIELD, 
+                PARTITION_KEY_FIELD,
                 ((Struct) sourceRecord.value()).getString(PARTITION_KEY_FIELD),
                 Schema.STRING_SCHEMA
             );
@@ -196,7 +197,7 @@ public class Outbox implements Transformation<SourceRecord> {
             throw new DataException("Unable to find partition_number in source record " + sourceRecord.toString(), e);
         }
     }
-    
+
     private Integer getGeneratedPartitionNumber(TopicDescription topic, SourceRecord sourceRecord) {
         String partitionKey;
         try {

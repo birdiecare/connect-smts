@@ -28,9 +28,10 @@ transforms.outbox.topic="target-topic"
 
 ## Properties
 
-|Name|Description|Type|Default|
-|---|---|---|---|
-|`topic`| The name of the topic to send messages to | String | ø |
-|`partition-setting`| If `partition-key`, will decide the partition from the `partition_key`, if `partition-number`, will pick directly from the `partition_number` column | String | `partition-number` |
-|`num-partitions`| The number of partitions in your target topic. Alternatively, use `topic@3` to set your target topic being `topic`, with `3` partitions. | String | `false` |
-| `debug-log-level` | The log level setting (trace/debug/info) for debugging logs, to track exactly what record was received and what was transformed/sent | String | `trace`
+| Name                | Description                                                                                                                                         |Type|Default|
+|---------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------|---|---|
+| `topic`             | The name of the topic to send messages to                                                                                                           | String | ø |
+| `topic-prefix`      | Prefix added to the name of the topic                                                                               | String | ø |
+| `partition-setting` | If `partition-key`, will decide the partition from the `partition_key`, if `partition-number`, will pick directly from the `partition_number` column | String | `partition-number` |
+| `num-partitions`    | The number of partitions in your target topic. Alternatively, use `topic@3` to set your target topic being `topic`, with `3` partitions.            | String | `false` |
+| `debug-log-level`   | The log level setting (trace/debug/info) for debugging logs, to track exactly what record was received and what was transformed/sent                | String | `trace`

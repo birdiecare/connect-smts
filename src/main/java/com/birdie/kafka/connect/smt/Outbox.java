@@ -36,7 +36,7 @@ public class Outbox implements Transformation<SourceRecord> {
 
     public static final ConfigDef CONFIG_DEF = new ConfigDef()
             .define(Outbox.ConfigName.TOPIC, ConfigDef.Type.STRING, null, ConfigDef.Importance.MEDIUM, "The name of the topic to send messages to.")
-            .define(ConfigName.TOPIC_PREFIX, ConfigDef.Type.STRING, null, ConfigDef.Importance.LOW, "")
+            .define(ConfigName.TOPIC_PREFIX, ConfigDef.Type.STRING, null, ConfigDef.Importance.LOW, "Prefix added to the name of the topic")
             .define(Outbox.ConfigName.PARTITION_SETTING, ConfigDef.Type.STRING, "partition-number", ConfigDef.Importance.MEDIUM, "Set to \"partition-number\" (default) to use the record's partition_number value, or set to \"partition-key\" to generate partition number using record's partition_key value")
             .define(Outbox.ConfigName.NUMBER_OF_PARTITION_IN_TOPIC, ConfigDef.Type.INT, 0, ConfigDef.Importance.MEDIUM, "Number of partitions on the target topic")
     ;

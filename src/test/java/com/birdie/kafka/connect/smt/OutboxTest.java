@@ -435,4 +435,70 @@ public class OutboxTest {
         assertNull(transformedRecord.value());
         assertNull(transformedRecord.valueSchema());
     }
+
+    @Test
+    public void sendMessageWithTopicPrefixWithoutTopicField() {
+        Struct value = new Struct(schemaWithPartitionNumber);
+        value.put("key", "1234");
+        value.put("partition_number", 1);
+        value.put("payload", "[\"foo\", \"bar\"]");
+
+        SourceRecord record = new SourceRecord(
+                null,
+                null,
+                "a-database-name.public.the_database_table",
+                null,
+                SchemaBuilder.bytes().optional().build(),
+                "1234".getBytes(),
+                schemaWithPartitionNumber,
+                value
+        );
+
+        Outbox transformerWithTopicPrefix = new Outbox();
+        transformerWithTopicPrefix.configure(new HashMap<>() {{
+            put("topic", "caregivers.matches.v1");
+            put("topic-prefix", "integration");
+        }});
+
+        final SourceRecord transformedRecord = transformerWithTopicPrefix.apply(record);
+        assertEquals("integration.caregivers.matches.v1", transformedRecord.topic());
+        assertNotNull(transformedRecord.kafkaPartition());
+        assertEquals("1", transformedRecord.kafkaPartition().toString());
+        assertEquals("[\"foo\", \"bar\"]", transformedRecord.value());
+        assertEquals(Schema.Type.STRING, transformedRecord.valueSchema().type());
+
+        transformerWithTopicPrefix.close();
+    }
+
+    @Test
+    public void sendMessageWithTopicPrefixAndTopicField() {
+        Struct value = new Struct(schemaWithPartitionKeyAndTopic);
+        value.put("key", "1234");
+        value.put("partition_key", "1234-5678");
+        value.put("topic", "my.topic.v1@3");
+        value.put("payload", "[\"foo\", \"bar\"]");
+
+        // Re-configure the outbox
+        Outbox transformerWithTopicPrefix = new Outbox();
+        transformerWithTopicPrefix.configure(new HashMap<>() {{
+            put("partition-setting", "partition-key");
+            put("topic-prefix", "integration");
+        }});
+
+        SourceRecord record = new SourceRecord(
+                null,
+                null,
+                "a-database-name.public.the_database_table",
+                null,
+                SchemaBuilder.bytes().optional().build(),
+                "1234".getBytes(),
+                schemaWithPartitionKeyAndTopic,
+                value
+        );
+
+        final SourceRecord transformedRecord = transformerWithTopicPrefix.apply(record);
+        assertEquals("integration.my.topic.v1", transformedRecord.topic());
+        assertEquals("2", transformedRecord.kafkaPartition().toString());
+        transformerWithTopicPrefix.close();
+    }
 }

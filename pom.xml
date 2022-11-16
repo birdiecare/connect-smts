@@ -16,7 +16,7 @@
         <java.version>1.8</java.version>
         <kafkaconnect.version>2.7.0</kafkaconnect.version>
         <confluent.version>5.1.1</confluent.version>
-        <jackson.version>2.12.0</jackson.version>
+        <jackson.version>2.12.7.1</jackson.version>
     </properties>
 
     <dependencies>

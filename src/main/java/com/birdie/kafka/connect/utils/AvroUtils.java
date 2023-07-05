@@ -43,9 +43,6 @@ public class AvroUtils {
         }
 
         final String sanitizedName = sanitizedNameBuilder.toString();
-        if (changed) {
-            LOGGER.warn("Field '{}' name potentially not safe for serialization, replaced with '{}'", columnName, sanitizedName);
-        }
 
         return sanitizedName;
     }

@@ -70,6 +70,12 @@ public class Outbox implements Transformation<SourceRecord> {
     public SourceRecord apply(SourceRecord sourceRecord) {
         LOGGER.debug("Received source record: {}", sourceRecord);
 
+        /* Skipping messages from incremental snapshots */
+        if (sourceRecord.topic().toLowerCase().contains("dbz_signal")){
+            LOGGER.debug("Skipping dbz_signal record: {}", sourceRecord);
+            return sourceRecord;
+        }
+
         if (sourceRecord.value() == null) {
             LOGGER.debug("Dropping debezium-generated tombstones with null partition_key: {}", sourceRecord);
             return null;

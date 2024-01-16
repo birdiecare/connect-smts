@@ -8,7 +8,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import java.util.HashMap;
-import java.util.Map;
 import static org.junit.Assert.*;
 
 public class OutboxTest {
@@ -32,6 +31,13 @@ public class OutboxTest {
             .field("key", SchemaBuilder.STRING_SCHEMA)
             .field("partition_number", SchemaBuilder.INT32_SCHEMA)
             .field("payload", SchemaBuilder.string().name("io.debezium.data.Json").optional().build())
+            .build();
+
+    private final Schema schemaSignal = SchemaBuilder.struct()
+            .name("Value")
+            .field("key", SchemaBuilder.STRING_SCHEMA)
+            .field("type", SchemaBuilder.STRING_SCHEMA)
+            .field("data", SchemaBuilder.STRING_SCHEMA)
             .build();
 
     private final Schema schemaWithPartitionKey = SchemaBuilder.struct()
@@ -93,6 +99,28 @@ public class OutboxTest {
         assertEquals("1", transformedRecord.kafkaPartition().toString());
         assertEquals("[\"foo\", \"bar\"]", transformedRecord.value());
         assertEquals(Schema.Type.STRING, transformedRecord.valueSchema().type());
+    }
+
+    @Test
+    public void sendsSignalMessage() {
+        Struct value = new Struct(schemaSignal);
+        value.put("key", "ad-hoc");
+        value.put("type", "execute-snapshot");
+        value.put("data", "data-collections");
+
+        SourceRecord record = new SourceRecord(
+                null,
+                null,
+                "public.dbz_signal",
+                null,
+                SchemaBuilder.bytes().optional().build(),
+                "ad-hoc".getBytes(),
+                schemaSignal,
+                value
+        );
+
+        final SourceRecord transformedRecord = transformer.apply(record);
+        assertEquals("public.dbz_signal", transformedRecord.topic());
     }
 
     @Test

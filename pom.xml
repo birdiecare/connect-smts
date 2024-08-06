@@ -14,9 +14,9 @@
         <github.global.server>github</github.global.server>
 
         <java.version>1.8</java.version>
-        <kafkaconnect.version>2.7.0</kafkaconnect.version>
-        <confluent.version>5.1.1</confluent.version>
-        <jackson.version>2.12.0</jackson.version>
+        <kafkaconnect.version>3.7.1</kafkaconnect.version>
+        <confluent.version>7.7.0</confluent.version>
+        <jackson.version>2.17.2</jackson.version>
     </properties>
 
     <dependencies>
@@ -34,7 +34,7 @@
         <dependency>
             <groupId>org.bitbucket.b_c</groupId>
             <artifactId>jose4j</artifactId>
-            <version>0.7.6</version>
+            <version>0.9.6</version>
         </dependency>
         <dependency>
             <groupId>junit</groupId>

@@ -6,7 +6,6 @@ This repository contains Kafka Connect SMTs used by Birdie.
 2. [JOSE decryption](./doc/jose-decryption.md) to decrypt messages using JOSE.
 3. [Outbox](./doc/outbox.md) pattern with partition routing.
 
-
 # Development
 
 ```

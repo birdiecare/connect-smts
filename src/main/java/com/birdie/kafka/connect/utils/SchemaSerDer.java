@@ -9,7 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class SchemaSerDer {
-    private ObjectMapper objectMapper = new ObjectMapper().setSerializationInclusion(JsonInclude.Include.NON_NULL);
+    private final ObjectMapper objectMapper = new ObjectMapper().setSerializationInclusion(JsonInclude.Include.ALWAYS);
 
     public String serialize(Schema schema) {
         if (schema == null) {

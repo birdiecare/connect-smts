@@ -70,11 +70,6 @@ public class SchemaTransformer {
                     optionalStructFields
             );
         } else if (obj.isArray()) {
-            // We can't guess the type of an array's content if it's empty so we ignore it.
-            if (obj.size() == 0) {
-                return null;
-            }
-
             List<Schema> transformedSchemas = new ArrayList<>();
             List<Object> transformedValues = new ArrayList<>();
 
@@ -117,7 +112,8 @@ public class SchemaTransformer {
                     transformedValues
             );
         } else if (obj.isNull()) {
-            return null;
+            SchemaBuilder builder = SchemaBuilder.string().optional();
+            return new SchemaAndValue(builder.build(), null);
         }
 
         return transformJsonLiteral(obj);

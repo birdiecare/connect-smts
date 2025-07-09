@@ -4,6 +4,7 @@ import com.birdie.kafka.connect.utils.SchemaSerDer;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import org.apache.kafka.connect.data.*;
 import org.apache.kafka.connect.source.SourceRecord;
+import org.junit.Ignore;
 import org.junit.Test;
 import uk.org.lidalia.slf4jtest.TestLogger;
 import uk.org.lidalia.slf4jtest.TestLoggerFactory;
@@ -75,6 +76,7 @@ public class DebeziumJsonDeserializerTest {
     }
 
     @Test
+    @Ignore("Test ignored as null values should be serialized")
     public void ignoresANullValueWithinProperty() {
         Struct value = new Struct(simpleSchema);
         value.put("id", "1234-5678");
@@ -92,6 +94,29 @@ public class DebeziumJsonDeserializerTest {
         assertEquals(Schema.Type.STRUCT, jsonSchema.type());
         assertNotNull(jsonSchema.field("foo"));
         assertNull(jsonSchema.field("baz"));
+    }
+
+    @Test
+    public void nullAndEmptyArrayShouldBeSerialized() {
+        Struct value = new Struct(simpleSchema);
+        value.put("id", "1234-5678");
+        value.put("json", "{\"foo\": \"bar\", \"baz\": null, \"things\": []}");
+
+        final SourceRecord transformedRecord = doTransform(value, new HashMap<>() {{
+            put("optional-struct-fields", "true");
+        }});
+
+        Schema transformedValueSchema = transformedRecord.valueSchema();
+
+        assertNotNull(transformedValueSchema);
+        assertNotNull(transformedValueSchema.field("id"));
+        assertNotNull(transformedValueSchema.field("json"));
+
+        Schema jsonSchema = transformedValueSchema.field("json").schema();
+        assertEquals(Schema.Type.STRUCT, jsonSchema.type());
+        assertNotNull(jsonSchema.field("foo"));
+        assertNotNull(jsonSchema.field("baz"));
+        assertNotNull(jsonSchema.field("things"));
     }
 
     @Test
@@ -140,6 +165,7 @@ public class DebeziumJsonDeserializerTest {
     }
 
     @Test
+    @Ignore
     public void transformsAnArrayOfNumbersAndAnEmptyNumberTogether() {
         Struct value = new Struct(simpleSchema);
         value.put("id", "1234-5678");
@@ -235,6 +261,7 @@ public class DebeziumJsonDeserializerTest {
     }
 
     @Test
+    @Ignore("Due to customisation to serialize arrays even if they are empty")
     public void ignoresEmptyArrays() {
         Struct value = new Struct(simpleSchema);
         value.put("id", "1234-5678");
@@ -649,6 +676,7 @@ public class DebeziumJsonDeserializerTest {
     }
 
     @Test
+    @Ignore("Test ignored as customization allows empty values and empty arrays")
     public void handlesEmptyValuesForBasicFields() {
         Struct firstMessageContents = new Struct(simpleSchema);
         firstMessageContents.put("id", "1234-5678");

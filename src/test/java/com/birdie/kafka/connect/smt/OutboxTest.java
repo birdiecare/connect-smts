@@ -529,4 +529,32 @@ public class OutboxTest {
         assertEquals("2", transformedRecord.kafkaPartition().toString());
         transformerWithTopicPrefix.close();
     }
+
+    // A Postgres logical decoding message (e.g. a pg_logical_emit_message heartbeat)
+    // reaching the SMT: it has no payload, so it must be dropped, not crash the task.
+    @Test
+    public void dropsLogicalDecodingMessages() {
+        Schema messageSchema = SchemaBuilder.struct()
+                .name("io.debezium.connector.postgresql.MessageValue")
+                .field("op", SchemaBuilder.STRING_SCHEMA)
+                .field("ts_ms", SchemaBuilder.OPTIONAL_INT64_SCHEMA)
+                .field("message", SchemaBuilder.struct()
+                        .name("io.debezium.connector.postgresql.Message")
+                        .field("prefix", SchemaBuilder.STRING_SCHEMA)
+                        .field("content", SchemaBuilder.BYTES_SCHEMA)
+                        .build())
+                .build();
+        Struct message = new Struct(messageSchema.field("message").schema())
+                .put("prefix", "heartbeat")
+                .put("content", "2026-11-25 11:00:00".getBytes());
+        Struct value = new Struct(messageSchema)
+                .put("op", "m")
+                .put("ts_ms", 1795000000000L)
+                .put("message", message);
+
+        SourceRecord record = new SourceRecord(null, null, "core-api-outbox-one.message", 0,
+                null, null, messageSchema, value);
+
+        assertNull(transformer.apply(record));
+    }
 }

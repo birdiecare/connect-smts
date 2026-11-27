@@ -87,6 +87,12 @@ public class Outbox implements Transformation<SourceRecord> {
             return sourceRecord;
         }
 
+        /* Neither an outbox row nor a delete (e.g. a Postgres logical decoding message used as a heartbeat) */
+        if (valueSchema.field("payload") == null && valueSchema.field(DELETED_FIELD) == null) {
+            LOGGER.debug("Dropping non-outbox record: {}", sourceRecord);
+            return null;
+        }
+
         Struct value = (Struct) sourceRecord.value();
 
         Schema transformedSchema;
